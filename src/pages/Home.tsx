@@ -305,40 +305,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* PDF Download FAB */}
-        {!loading && (
-          <button
-            onClick={() => generateMenuPdf(categories, items)}
-            style={{
-              position: 'fixed',
-              bottom: 24,
-              right: 24,
-              width: 52,
-              height: 52,
-              borderRadius: '50%',
-              background: 'var(--gold)',
-              color: 'var(--black)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 16px rgba(200,168,78,0.3)',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              zIndex: 50,
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'scale(1.1)'
-              e.currentTarget.style.boxShadow = '0 6px 24px rgba(200,168,78,0.5)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'scale(1)'
-              e.currentTarget.style.boxShadow = '0 4px 16px rgba(200,168,78,0.3)'
-            }}
-            title="Download PDF Menu"
-          >
-            <FileDown size={22} />
-          </button>
-        )}
     </div>
   )
 }
