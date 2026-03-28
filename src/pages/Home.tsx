@@ -27,7 +27,7 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section style={{
+      <section className="hero-section" style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -43,6 +43,7 @@ export default function Home() {
         }} />
 
         <img
+          className="hero-logo"
           src="/logo-white-transparent.png"
           alt="Tacos Miranda"
           style={{
@@ -110,12 +111,12 @@ export default function Home() {
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gold)' }}
         >
           <Phone size={18} />
-          Call & Order Ahead: (657) 845-4011
+          <span className="phone-cta-text">Call & Order Ahead: (657) 845-4011</span>
         </a>
       </section>
 
       {/* Highlights */}
-      <section style={{
+      <section className="highlight-cards" style={{
         padding: '20px 24px 40px',
         display: 'flex',
         justifyContent: 'center',
@@ -169,8 +170,8 @@ export default function Home() {
       </section>
 
       {/* Menu */}
-      <section id="menu" style={{ padding: '40px 24px 80px', maxWidth: 1200, margin: '0 auto' }}>
-        <h1 style={{
+      <section id="menu" className="menu-section" style={{ padding: '40px 24px 80px', maxWidth: 1200, margin: '0 auto' }}>
+        <h1 className="menu-heading" style={{
           fontFamily: 'var(--font-heading)',
           fontSize: 40,
           color: 'var(--white)',
@@ -193,7 +194,7 @@ export default function Home() {
         {loading ? (
           <p style={{ color: 'var(--gray)', fontSize: 14, textAlign: 'center' }}>Loading menu...</p>
         ) : (
-          <div style={{
+          <div className="menu-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
             gap: 24,
@@ -222,8 +223,8 @@ export default function Home() {
       </section>
 
       {/* Location */}
-      <section id="location" style={{ padding: '60px 24px 80px', maxWidth: 900, margin: '0 auto' }}>
-        <h2 style={{
+      <section id="location" className="location-section" style={{ padding: '60px 24px 80px', maxWidth: 900, margin: '0 auto' }}>
+        <h2 className="location-heading" style={{
           fontFamily: 'var(--font-heading)',
           fontSize: 36,
           color: 'var(--white)',
@@ -234,7 +235,7 @@ export default function Home() {
           Find Us
         </h2>
 
-        <div style={{
+        <div className="location-flex" style={{
           display: 'flex',
           gap: 32,
           flexWrap: 'wrap',
@@ -248,7 +249,8 @@ export default function Home() {
             padding: '32px 28px',
             flex: '1 1 300px',
             maxWidth: 380,
-          }}>
+          }}
+          className="location-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <MapPin size={20} color="var(--gold)" />
               <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, color: 'var(--white)' }}>Location</h3>
@@ -284,7 +286,7 @@ export default function Home() {
           </div>
 
           {/* Map */}
-          <div style={{
+          <div className="location-map" style={{
             flex: '1 1 400px',
             maxWidth: 500,
             borderRadius: 12,

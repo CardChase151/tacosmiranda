@@ -62,7 +62,7 @@ export default function EmailBanner() {
   }
 
   return (
-    <div style={{
+    <div className="email-banner" style={{
       position: 'fixed',
       top: 70,
       right: 20,
