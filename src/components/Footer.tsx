@@ -49,6 +49,22 @@ export default function Footer() {
       }}>
         &copy; {new Date().getFullYear()} Tacos Miranda. All rights reserved.
       </p>
+      <a
+        href="https://appcatalyst.org"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'block',
+          fontFamily: 'var(--font-body)',
+          fontSize: 10,
+          color: 'var(--gray-dark)',
+          marginTop: 8,
+          textDecoration: 'none',
+          opacity: 0.4,
+        }}
+      >
+        Built by AppCatalyst
+      </a>
     </footer>
   )
 }
