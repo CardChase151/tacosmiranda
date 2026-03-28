@@ -29,7 +29,7 @@ export function generateMenuPdf(categories: MenuCategory[], items: MenuItem[]) {
   const addFooter = () => {
     doc.setFontSize(8)
     doc.setTextColor(...GOLD)
-    doc.text('White Corn Tortillas  |  Cooked in Beef Tallow', pageWidth / 2, doc.internal.pageSize.getHeight() - 15, { align: 'center' })
+    doc.text('Tacos Miranda', pageWidth / 2, doc.internal.pageSize.getHeight() - 15, { align: 'center' })
   }
 
   // Page 1

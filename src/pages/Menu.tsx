@@ -48,15 +48,7 @@ export default function Menu() {
       }}>
         Our Menu
       </h1>
-      <p style={{
-        textAlign: 'center',
-        color: 'var(--gray)',
-        fontSize: 14,
-        fontStyle: 'italic',
-        marginBottom: 48,
-      }}>
-        White corn tortillas &middot; Cooked in beef tallow
-      </p>
+      <div style={{ marginBottom: 48 }} />
 
       {categories.map(cat => (
         <MenuSection

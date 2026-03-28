@@ -10,14 +10,6 @@ export default function Footer() {
         alt="Tacos Miranda"
         style={{ height: 50, opacity: 0.6, marginBottom: 16 }}
       />
-      <p style={{
-        fontFamily: 'var(--font-body)',
-        fontSize: 13,
-        color: 'var(--gray-dark)',
-        letterSpacing: 1,
-      }}>
-        White Corn Tortillas &middot; Cooked in Beef Tallow
-      </p>
       <a
         href="tel:6578454011"
         style={{
