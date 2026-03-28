@@ -4,7 +4,7 @@ const BASE_URL = 'https://tacosmiranda.com'
 
 export default function SEO() {
   const title = 'Tacos Miranda | Authentic Mexican Food | Huntington Beach, CA'
-  const description = 'Authentic Mexican food in Huntington Beach. White corn tortillas, cooked in beef tallow. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM. Call (657) 845-4011 to order ahead.'
+  const description = 'Authentic Mexican food in Huntington Beach. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM. Call (657) 845-4011 to order ahead.'
 
   return (
     <Helmet>

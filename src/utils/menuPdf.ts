@@ -51,7 +51,7 @@ export function generateMenuPdf(categories: MenuCategory[], items: MenuItem[]) {
   y += 10
   doc.setFontSize(10)
   doc.setTextColor(...GRAY)
-  doc.text('Handcrafted with white corn tortillas, cooked in premium beef tallow', pageWidth / 2, y, { align: 'center' })
+  doc.text('Authentic Mexican Food - Huntington Beach, CA', pageWidth / 2, y, { align: 'center' })
 
   y += 20
 

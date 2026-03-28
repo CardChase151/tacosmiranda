@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Wheat, Flame, FileDown, MapPin, Clock, Phone, ShoppingBag } from 'lucide-react'
+import { MapPin, Clock, Phone, ShoppingBag } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -61,17 +61,6 @@ export default function Home() {
           margin: '8px 0 20px',
         }} />
 
-        <p style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 16,
-          color: 'var(--gray)',
-          fontStyle: 'italic',
-          textAlign: 'center',
-          maxWidth: 420,
-          lineHeight: 1.6,
-        }}>
-          Handcrafted with white corn tortillas, cooked in premium beef tallow
-        </p>
 
         <div style={{
           marginTop: 32,
@@ -121,59 +110,6 @@ export default function Home() {
         <p style={{ color: 'var(--gray)', fontSize: 14, marginTop: 8, letterSpacing: 1 }}>(657) 845-4011</p>
       </section>
 
-      {/* Highlights */}
-      <section className="highlight-cards" style={{
-        padding: '20px 24px 40px',
-        display: 'flex',
-        justifyContent: 'center',
-        gap: 24,
-        flexWrap: 'wrap',
-      }}>
-        {[
-          {
-            icon: <Wheat size={28} color="var(--gold)" />,
-            title: 'White Corn Tortillas',
-            desc: 'Most items are made with authentic white corn tortillas. Ask us about gluten-friendly options when ordering.',
-          },
-          {
-            icon: <Flame size={28} color="var(--gold)" />,
-            title: 'Beef Tallow',
-            desc: 'Traditional cooking. Our meats are prepared with premium beef tallow for rich, authentic flavor.',
-          },
-        ].map((card, i) => (
-          <div
-            key={i}
-            style={{
-              background: 'var(--dark-card)',
-              borderTop: '2px solid var(--gold)',
-              borderRadius: 12,
-              padding: '32px 28px',
-              width: 300,
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <div style={{ marginBottom: 16 }}>{card.icon}</div>
-            <h3 style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 20,
-              color: 'var(--white)',
-              marginBottom: 8,
-            }}>
-              {card.title}
-            </h3>
-            <p style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              color: 'var(--gray)',
-              lineHeight: 1.6,
-            }}>
-              {card.desc}
-            </p>
-          </div>
-        ))}
-      </section>
 
       {/* Menu */}
       <section id="menu" className="menu-section" style={{ padding: '40px 24px 80px', maxWidth: 1200, margin: '0 auto' }}>
