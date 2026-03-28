@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Wheat, Flame, FileDown, MapPin, Clock, Phone } from 'lucide-react'
+import { Wheat, Flame, FileDown, MapPin, Clock, Phone, ShoppingBag } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -71,6 +71,22 @@ export default function Home() {
         }}>
           Handcrafted with white corn tortillas, cooked in premium beef tallow
         </p>
+
+        <div style={{
+          marginTop: 32,
+          padding: '10px 24px',
+          background: 'var(--dark-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <ShoppingBag size={16} color="var(--gold)" />
+          <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
+            Online Ordering - Coming Soon
+          </span>
+        </div>
 
         <a
           href="tel:6578454011"
