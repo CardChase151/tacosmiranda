@@ -292,24 +292,43 @@ export default function Home() {
           </div>
 
           {/* Map */}
-          <div className="location-map" style={{
-            flex: '1 1 400px',
-            maxWidth: 500,
-            borderRadius: 12,
-            overflow: 'hidden',
-            border: '1px solid var(--border)',
-          }}>
-            <iframe
-              title="Tacos Miranda Location"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3322.5!2d-117.95565!3d33.6493169!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80dd21007da0f38f%3A0x241ca38d2c64035d!2sTacos%20Miranda!5e0!3m2!1sen!2sus!4v1700000000000"
-              width="100%"
-              height="350"
-              style={{ border: 0 }}
-              allowFullScreen
+          <a
+            className="location-map"
+            href="https://www.google.com/maps/place/Tacos+Miranda/@33.6493169,-117.95565,17z"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              flex: '1 1 400px',
+              maxWidth: 500,
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '1px solid var(--border)',
+              display: 'block',
+              position: 'relative',
+            }}
+          >
+            <img
+              src="/map.png"
+              alt="Tacos Miranda - 21582 Brookhurst St, Huntington Beach, CA"
+              style={{ width: '100%', display: 'block' }}
               loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
             />
-          </div>
+            <div style={{
+              position: 'absolute',
+              bottom: 12,
+              right: 12,
+              background: 'var(--gold)',
+              color: 'var(--black)',
+              padding: '8px 16px',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}>
+              Get Directions
+            </div>
+          </a>
         </div>
       </section>
 
