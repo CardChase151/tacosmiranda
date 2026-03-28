@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './context/AuthContext'
+import SEO from './components/SEO'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import EmailBanner from './components/EmailBanner'
 import AdminLoginModal from './components/AdminLoginModal'
 import Home from './pages/Home'
-import Menu from './pages/Menu'
 import './App.css'
 
 function AppContent() {
@@ -15,12 +15,10 @@ function AppContent() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <SEO />
       <Header onAdminClick={() => setShowLogin(true)} />
       <main style={{ flex: 1 }}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/menu" element={<Menu />} />
-        </Routes>
+        <Home />
       </main>
       <Footer />
       <EmailBanner />

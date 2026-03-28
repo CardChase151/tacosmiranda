@@ -18,6 +18,28 @@ export default function Footer() {
       }}>
         White Corn Tortillas &middot; Cooked in Beef Tallow
       </p>
+      <a
+        href="tel:6578454011"
+        style={{
+          display: 'block',
+          fontFamily: 'var(--font-body)',
+          fontSize: 15,
+          color: 'var(--gold)',
+          marginTop: 12,
+          textDecoration: 'none',
+          fontWeight: 600,
+        }}
+      >
+        (657) 845-4011
+      </a>
+      <p style={{
+        fontFamily: 'var(--font-body)',
+        fontSize: 12,
+        color: 'var(--gray-dark)',
+        marginTop: 8,
+      }}>
+        21582 Brookhurst St, Huntington Beach, CA 92646
+      </p>
       <p style={{
         fontFamily: 'var(--font-body)',
         fontSize: 12,

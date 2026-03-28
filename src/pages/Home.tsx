@@ -1,19 +1,38 @@
-import { useNavigate } from 'react-router-dom'
-import { Wheat, Flame } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Wheat, Flame, FileDown, MapPin, Clock, Phone } from 'lucide-react'
+import { supabase } from '../config/supabase'
+import { useAuth } from '../context/AuthContext'
+import { MenuCategory, MenuItem } from '../types'
+import MenuSection from '../components/MenuSection'
+import { generateMenuPdf } from '../utils/menuPdf'
 
 export default function Home() {
-  const navigate = useNavigate()
+  const { isAdmin } = useAuth()
+  const [categories, setCategories] = useState<MenuCategory[]>([])
+  const [items, setItems] = useState<MenuItem[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchMenu = useCallback(async () => {
+    const [catRes, itemRes] = await Promise.all([
+      supabase.from('menu_categories').select('*').order('sort_order'),
+      supabase.from('menu_items').select('*').order('sort_order'),
+    ])
+    if (catRes.data) setCategories(catRes.data)
+    if (itemRes.data) setItems(itemRes.data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchMenu() }, [fetchMenu])
 
   return (
     <div>
       {/* Hero */}
       <section style={{
-        minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '40px 24px',
+        padding: '80px 24px 40px',
         position: 'relative',
       }}>
         <div style={{
@@ -27,8 +46,8 @@ export default function Home() {
           src="/logo-white-transparent.png"
           alt="Tacos Miranda"
           style={{
-            width: 280,
-            maxWidth: '70vw',
+            width: 700,
+            maxWidth: '90vw',
             marginBottom: 24,
             filter: 'drop-shadow(0 0 40px rgba(200,168,78,0.1))',
           }}
@@ -38,7 +57,7 @@ export default function Home() {
           width: 60,
           height: 1,
           background: 'var(--gold)',
-          margin: '16px 0 24px',
+          margin: '8px 0 20px',
         }} />
 
         <p style={{
@@ -53,38 +72,35 @@ export default function Home() {
           Handcrafted with white corn tortillas, cooked in premium beef tallow
         </p>
 
-        <button
-          onClick={() => navigate('/menu')}
+        <a
+          href="tel:6578454011"
           style={{
-            marginTop: 48,
-            padding: '14px 40px',
-            background: 'var(--gold)',
-            color: 'var(--black)',
-            border: 'none',
+            marginTop: 32,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 32px',
+            background: 'transparent',
+            border: '1px solid var(--gold)',
             borderRadius: 4,
-            fontSize: 14,
-            fontWeight: 700,
-            letterSpacing: 2,
-            textTransform: 'uppercase',
-            transition: 'box-shadow 0.3s, transform 0.2s',
-            boxShadow: '0 0 0 rgba(200,168,78,0)',
+            color: 'var(--gold)',
+            fontSize: 16,
+            fontWeight: 600,
+            letterSpacing: 1,
+            textDecoration: 'none',
+            transition: 'background 0.2s, color 0.2s',
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.boxShadow = '0 0 24px rgba(200,168,78,0.3)'
-            e.currentTarget.style.transform = 'translateY(-1px)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.boxShadow = '0 0 0 rgba(200,168,78,0)'
-            e.currentTarget.style.transform = 'translateY(0)'
-          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--gold)'; e.currentTarget.style.color = 'var(--black)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gold)' }}
         >
-          View Our Menu
-        </button>
+          <Phone size={18} />
+          Call & Order Ahead: (657) 845-4011
+        </a>
       </section>
 
       {/* Highlights */}
       <section style={{
-        padding: '60px 24px 80px',
+        padding: '20px 24px 40px',
         display: 'flex',
         justifyContent: 'center',
         gap: 24,
@@ -94,7 +110,7 @@ export default function Home() {
           {
             icon: <Wheat size={28} color="var(--gold)" />,
             title: 'White Corn Tortillas',
-            desc: 'Gluten-friendly. Every taco, burrito, and quesadilla starts with authentic white corn tortillas.',
+            desc: 'Most items are made with authentic white corn tortillas. Ask us about gluten-friendly options when ordering.',
           },
           {
             icon: <Flame size={28} color="var(--gold)" />,
@@ -135,6 +151,178 @@ export default function Home() {
           </div>
         ))}
       </section>
+
+      {/* Menu */}
+      <section id="menu" style={{ padding: '40px 24px 80px', maxWidth: 1200, margin: '0 auto' }}>
+        <h1 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 40,
+          color: 'var(--white)',
+          textAlign: 'center',
+          letterSpacing: 4,
+          marginBottom: 8,
+        }}>
+          Our Menu
+        </h1>
+        <p style={{
+          textAlign: 'center',
+          color: 'var(--gray)',
+          fontSize: 14,
+          fontStyle: 'italic',
+          marginBottom: 48,
+        }}>
+          White corn tortillas &middot; Cooked in beef tallow
+        </p>
+
+        {loading ? (
+          <p style={{ color: 'var(--gray)', fontSize: 14, textAlign: 'center' }}>Loading menu...</p>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 24,
+          }}>
+            {categories.map(cat => (
+              <div
+                key={cat.id}
+                style={{
+                  background: 'var(--dark-card)',
+                  borderRadius: 12,
+                  padding: '24px 20px',
+                  borderTop: '2px solid var(--gold)',
+                }}
+              >
+                <MenuSection
+                  category={cat}
+                  items={items.filter(i => i.category_id === cat.id)}
+                  isAdmin={isAdmin}
+                  onUpdate={fetchMenu}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+      </section>
+
+      {/* Location */}
+      <section id="location" style={{ padding: '60px 24px 80px', maxWidth: 900, margin: '0 auto' }}>
+        <h2 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 36,
+          color: 'var(--white)',
+          textAlign: 'center',
+          letterSpacing: 4,
+          marginBottom: 40,
+        }}>
+          Find Us
+        </h2>
+
+        <div style={{
+          display: 'flex',
+          gap: 32,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+        }}>
+          {/* Info */}
+          <div style={{
+            background: 'var(--dark-card)',
+            borderRadius: 12,
+            borderTop: '2px solid var(--gold)',
+            padding: '32px 28px',
+            flex: '1 1 300px',
+            maxWidth: 380,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <MapPin size={20} color="var(--gold)" />
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, color: 'var(--white)' }}>Location</h3>
+            </div>
+            <a
+              href="https://www.google.com/maps/place/Tacos+Miranda/@33.6493169,-117.95565,17z"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'var(--white)',
+                fontSize: 15,
+                lineHeight: 1.6,
+                display: 'block',
+                marginBottom: 28,
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--white)'}
+            >
+              21582 Brookhurst St<br />
+              Huntington Beach, CA 92646
+            </a>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <Clock size={20} color="var(--gold)" />
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, color: 'var(--white)' }}>Hours</h3>
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 2 }}>
+              <p>Monday - Sunday</p>
+              <p style={{ color: 'var(--white)', fontWeight: 600, fontSize: 16 }}>7 AM - 9 PM</p>
+              <p style={{ color: 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic' }}>Open 7 days a week</p>
+            </div>
+          </div>
+
+          {/* Map */}
+          <div style={{
+            flex: '1 1 400px',
+            maxWidth: 500,
+            borderRadius: 12,
+            overflow: 'hidden',
+            border: '1px solid var(--border)',
+          }}>
+            <iframe
+              title="Tacos Miranda Location"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3322.5!2d-117.95565!3d33.6493169!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80dd21007da0f38f%3A0x241ca38d2c64035d!2sTacos%20Miranda!5e0!3m2!1sen!2sus!4v1700000000000"
+              width="100%"
+              height="350"
+              style={{ border: 0, filter: 'invert(90%) hue-rotate(180deg)' }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* PDF Download FAB */}
+        {!loading && (
+          <button
+            onClick={() => generateMenuPdf(categories, items)}
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              background: 'var(--gold)',
+              color: 'var(--black)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(200,168,78,0.3)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              zIndex: 50,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'scale(1.1)'
+              e.currentTarget.style.boxShadow = '0 6px 24px rgba(200,168,78,0.5)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'scale(1)'
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(200,168,78,0.3)'
+            }}
+            title="Download PDF Menu"
+          >
+            <FileDown size={22} />
+          </button>
+        )}
     </div>
   )
 }

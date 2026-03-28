@@ -1,4 +1,3 @@
-import { Link, useLocation } from 'react-router-dom'
 import { Lock, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -8,7 +7,19 @@ interface HeaderProps {
 
 export default function Header({ onAdminClick }: HeaderProps) {
   const { isAdmin, signOut } = useAuth()
-  const location = useLocation()
+
+  const navStyle: React.CSSProperties = {
+    color: 'var(--gray)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    transition: 'color 0.2s',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+  }
 
   return (
     <header style={{
@@ -23,43 +34,31 @@ export default function Header({ onAdminClick }: HeaderProps) {
       alignItems: 'center',
       justifyContent: 'space-between',
     }}>
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <img
           src="/logo-white-transparent.png"
           alt="Tacos Miranda"
           style={{ height: 40 }}
         />
-      </Link>
+      </a>
 
       <nav style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-        <Link
-          to="/"
-          style={{
-            color: location.pathname === '/' ? 'var(--gold)' : 'var(--gray)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 14,
-            fontWeight: 500,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            transition: 'color 0.2s',
-          }}
-        >
-          Home
-        </Link>
-        <Link
-          to="/menu"
-          style={{
-            color: location.pathname === '/menu' ? 'var(--gold)' : 'var(--gray)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 14,
-            fontWeight: 500,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            transition: 'color 0.2s',
-          }}
+        <button
+          onClick={() => document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' })}
+          style={navStyle}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
         >
           Menu
-        </Link>
+        </button>
+        <button
+          onClick={() => document.getElementById('location')?.scrollIntoView({ behavior: 'smooth' })}
+          style={navStyle}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
+        >
+          Location
+        </button>
 
         {isAdmin ? (
           <button
