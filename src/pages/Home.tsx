@@ -299,40 +299,16 @@ export default function Home() {
             overflow: 'hidden',
             border: '1px solid var(--border)',
           }}>
-            <a
-              href="https://www.google.com/maps/place/Tacos+Miranda/@33.6493169,-117.95565,17z"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'block', position: 'relative' }}
-            >
-              <img
-                src={`https://maps.googleapis.com/maps/api/staticmap?center=33.6493169,-117.9530751&zoom=15&size=600x350&scale=2&maptype=roadmap&markers=color:red%7C33.6493169,-117.9530751&style=feature:all|element:geometry|color:0x1a1a2e&style=feature:all|element:labels.text.fill|color:0xffffff&style=feature:all|element:labels.text.stroke|color:0x000000&style=feature:road|element:geometry|color:0x2a2a3e&style=feature:water|element:geometry|color:0x0a0a1e&key=`}
-                alt="Tacos Miranda - 21582 Brookhurst St, Huntington Beach, CA"
-                width="100%"
-                height="350"
-                style={{
-                  display: 'block',
-                  objectFit: 'cover',
-                  background: 'var(--dark-card)',
-                }}
-                loading="lazy"
-              />
-              <div style={{
-                position: 'absolute',
-                bottom: 12,
-                right: 12,
-                background: 'var(--gold)',
-                color: 'var(--black)',
-                padding: '8px 16px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-              }}>
-                Open in Maps
-              </div>
-            </a>
+            <iframe
+              title="Tacos Miranda Location"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3322.5!2d-117.95565!3d33.6493169!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80dd21007da0f38f%3A0x241ca38d2c64035d!2sTacos%20Miranda!5e0!3m2!1sen!2sus!4v1700000000000"
+              width="100%"
+              height="350"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
           </div>
         </div>
       </section>
