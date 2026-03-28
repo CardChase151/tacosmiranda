@@ -95,24 +95,30 @@ export default function Home() {
             marginTop: 32,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 10,
-            padding: '14px 32px',
-            background: 'transparent',
-            border: '1px solid var(--gold)',
-            borderRadius: 4,
-            color: 'var(--gold)',
-            fontSize: 16,
-            fontWeight: 600,
+            padding: '16px 36px',
+            background: 'var(--gold)',
+            border: 'none',
+            borderRadius: 8,
+            color: 'var(--black)',
+            fontSize: 15,
+            fontWeight: 700,
             letterSpacing: 1,
             textDecoration: 'none',
-            transition: 'background 0.2s, color 0.2s',
+            textTransform: 'uppercase',
+            boxShadow: '0 4px 16px rgba(200,168,78,0.3)',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            width: 'fit-content',
+            maxWidth: '90vw',
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--gold)'; e.currentTarget.style.color = 'var(--black)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gold)' }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(200,168,78,0.5)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(200,168,78,0.3)' }}
         >
           <Phone size={18} />
-          <span className="phone-cta-text">Call & Order Ahead: (657) 845-4011</span>
+          <span>Tap to Call & Order</span>
         </a>
+        <p style={{ color: 'var(--gray)', fontSize: 14, marginTop: 8, letterSpacing: 1 }}>(657) 845-4011</p>
       </section>
 
       {/* Highlights */}
