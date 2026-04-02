@@ -11,9 +11,10 @@ interface Props {
   isAdmin: boolean
   onUpdate: () => void
   light?: boolean
+  allCategories?: MenuCategory[]
 }
 
-export default function MenuSection({ category, items, isAdmin, onUpdate, light }: Props) {
+export default function MenuSection({ category, items, isAdmin, onUpdate, light, allCategories = [] }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
@@ -64,7 +65,7 @@ export default function MenuSection({ category, items, isAdmin, onUpdate, light 
         {items
           .sort((a, b) => a.sort_order - b.sort_order)
           .map(item => (
-            <MenuItemRow key={item.id} item={item} isAdmin={isAdmin} onUpdate={onUpdate} light={light} />
+            <MenuItemRow key={item.id} item={item} isAdmin={isAdmin} onUpdate={onUpdate} light={light} categories={allCategories} />
           ))
         }
 

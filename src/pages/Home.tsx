@@ -405,6 +405,7 @@ export default function Home() {
                   isAdmin={isAdmin}
                   onUpdate={fetchMenu}
                   light={isBreakfast}
+                  allCategories={categories}
                 />
               </div>
             ))}

@@ -61,24 +61,29 @@ export default function Header({ onAdminClick }: HeaderProps) {
         </button>
 
         {isAdmin ? (
-          <button
-            onClick={signOut}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--gold)',
-              opacity: 0.6,
-              transition: 'opacity 0.2s',
-              padding: 4,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
-            title="Sign Out"
-          >
-            <LogOut size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5 }}>
+              Admin
+            </span>
+            <button
+              onClick={signOut}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--gold)',
+                opacity: 0.6,
+                transition: 'opacity 0.2s',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
+              title="Sign Out"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         ) : (
           <button
             onClick={onAdminClick}

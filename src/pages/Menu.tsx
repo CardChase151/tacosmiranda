@@ -302,6 +302,7 @@ export default function Menu() {
           isAdmin={isAdmin}
           onUpdate={fetchMenu}
           light={isBreakfast}
+          allCategories={categories}
         />
       ))}
 
