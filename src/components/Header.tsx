@@ -6,7 +6,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onAdminClick }: HeaderProps) {
-  const { isAdmin, signOut } = useAuth()
+  const { isAdmin, user, signOut } = useAuth()
 
   const navStyle: React.CSSProperties = {
     color: 'var(--gray)',
@@ -63,7 +63,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
         {isAdmin ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5 }}>
-              Admin
+              Logged in as {user?.email?.split('@')[0] || 'Admin'}
             </span>
             <button
               onClick={signOut}
