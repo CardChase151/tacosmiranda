@@ -11,7 +11,11 @@ export default function Menu() {
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [mealType, setMealType] = useState<'breakfast' | 'lunch_dinner'>('lunch_dinner')
+  const [mealType, setMealType] = useState<'breakfast' | 'lunch_dinner'>(() => {
+    const pstHour = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: false })
+    const hour = parseInt(pstHour, 10)
+    return (hour >= 3 && hour < 10) ? 'breakfast' : 'lunch_dinner'
+  })
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
