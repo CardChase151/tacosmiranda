@@ -7,9 +7,10 @@ interface Props {
   item: MenuItemType
   isAdmin: boolean
   onUpdate: () => void
+  light?: boolean
 }
 
-export default function MenuItemRow({ item, isAdmin, onUpdate }: Props) {
+export default function MenuItemRow({ item, isAdmin, onUpdate, light }: Props) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(item.name)
   const [price, setPrice] = useState(item.price.toString())
@@ -132,7 +133,7 @@ export default function MenuItemRow({ item, isAdmin, onUpdate }: Props) {
           fontFamily: 'var(--font-body)',
           fontSize: 17,
           fontWeight: 600,
-          color: 'var(--white)',
+          color: light ? '#1a1a1a' : 'var(--white)',
         }}>
           {item.name}
         </span>
@@ -147,7 +148,7 @@ export default function MenuItemRow({ item, isAdmin, onUpdate }: Props) {
           fontFamily: 'var(--font-body)',
           fontSize: 17,
           fontWeight: 700,
-          color: 'var(--gold)',
+          color: light ? '#8B6914' : 'var(--gold)',
           whiteSpace: 'nowrap',
         }}>
           ${item.price.toFixed(2)}
@@ -186,7 +187,7 @@ export default function MenuItemRow({ item, isAdmin, onUpdate }: Props) {
         <p style={{
           fontFamily: 'var(--font-body)',
           fontSize: 13,
-          color: 'var(--gray)',
+          color: light ? '#666666' : 'var(--gray)',
           marginTop: 4,
           lineHeight: 1.5,
         }}>

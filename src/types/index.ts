@@ -2,6 +2,7 @@ export interface MenuCategory {
   id: string
   name: string
   sort_order: number
+  meal_type: 'breakfast' | 'lunch_dinner'
 }
 
 export interface MenuItem {

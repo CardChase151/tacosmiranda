@@ -10,9 +10,10 @@ interface Props {
   items: MenuItemType[]
   isAdmin: boolean
   onUpdate: () => void
+  light?: boolean
 }
 
-export default function MenuSection({ category, items, isAdmin, onUpdate }: Props) {
+export default function MenuSection({ category, items, isAdmin, onUpdate, light }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
@@ -50,7 +51,7 @@ export default function MenuSection({ category, items, isAdmin, onUpdate }: Prop
       <h2 style={{
         fontFamily: 'var(--font-heading)',
         fontSize: 28,
-        color: 'var(--gold)',
+        color: light ? '#8B6914' : 'var(--gold)',
         textTransform: 'uppercase',
         letterSpacing: 3,
         textAlign: 'center',
@@ -63,7 +64,7 @@ export default function MenuSection({ category, items, isAdmin, onUpdate }: Prop
         {items
           .sort((a, b) => a.sort_order - b.sort_order)
           .map(item => (
-            <MenuItemRow key={item.id} item={item} isAdmin={isAdmin} onUpdate={onUpdate} />
+            <MenuItemRow key={item.id} item={item} isAdmin={isAdmin} onUpdate={onUpdate} light={light} />
           ))
         }
 

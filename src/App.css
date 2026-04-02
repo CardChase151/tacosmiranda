@@ -134,3 +134,21 @@ input {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Breakfast light theme overrides */
+body[data-theme="breakfast"] header {
+  background: rgba(250, 248, 243, 0.92) !important;
+  border-bottom-color: #E5E0D5 !important;
+}
+
+body[data-theme="breakfast"] header nav button {
+  color: #666 !important;
+}
+
+body[data-theme="breakfast"] header nav button:hover {
+  color: #8B6914 !important;
+}
+
+body[data-theme="breakfast"] header a img {
+  filter: invert(1) !important;
+}
