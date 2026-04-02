@@ -19,16 +19,29 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [hoursLabel, setHoursLabel] = useState('Monday - Sunday')
+  const [hoursTime, setHoursTime] = useState('7 AM - 9 PM')
+  const [hoursNote, setHoursNote] = useState('Open 7 days a week')
+  const [editingHours, setEditingHours] = useState(false)
+  const [tempLabel, setTempLabel] = useState('')
+  const [tempTime, setTempTime] = useState('')
+  const [tempNote, setTempNote] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sliderRef = useRef<HTMLDivElement>(null)
 
   const fetchMenu = useCallback(async () => {
-    const [catRes, itemRes] = await Promise.all([
+    const [catRes, itemRes, settingsRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
       supabase.from('menu_items').select('*').order('sort_order'),
+      supabase.from('site_settings').select('*').eq('id', 'main').single(),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
+    if (settingsRes.data) {
+      setHoursLabel(settingsRes.data.hours_label)
+      setHoursTime(settingsRes.data.hours_time)
+      setHoursNote(settingsRes.data.hours_note)
+    }
     setLoading(false)
   }, [])
 
@@ -478,9 +491,77 @@ export default function Home() {
               <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, color: isBreakfast ? '#1a1a1a' : 'var(--white)', transition: 'color 0.4s ease' }}>Hours</h3>
             </div>
             <div style={{ fontSize: 14, color: isBreakfast ? '#666' : 'var(--gray)', lineHeight: 2, transition: 'color 0.4s ease' }}>
-              <p>Monday - Sunday</p>
-              <p style={{ color: isBreakfast ? '#1a1a1a' : 'var(--white)', fontWeight: 600, fontSize: 16, transition: 'color 0.4s ease' }}>7 AM - 9 PM</p>
-              <p style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic', transition: 'color 0.4s ease' }}>Open 7 days a week</p>
+              {editingHours ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input
+                    value={tempLabel}
+                    onChange={e => setTempLabel(e.target.value)}
+                    placeholder="e.g. Monday - Sunday"
+                    style={{
+                      background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
+                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
+                    }}
+                  />
+                  <input
+                    value={tempTime}
+                    onChange={e => setTempTime(e.target.value)}
+                    placeholder="e.g. 7 AM - 9 PM"
+                    style={{
+                      background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
+                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
+                    }}
+                  />
+                  <input
+                    value={tempNote}
+                    onChange={e => setTempNote(e.target.value)}
+                    placeholder="e.g. Open 7 days a week"
+                    style={{
+                      background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
+                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button
+                      onClick={async () => {
+                        await supabase.from('site_settings').update({
+                          hours_label: tempLabel, hours_time: tempTime, hours_note: tempNote,
+                        }).eq('id', 'main')
+                        setHoursLabel(tempLabel)
+                        setHoursTime(tempTime)
+                        setHoursNote(tempNote)
+                        setEditingHours(false)
+                      }}
+                      style={{
+                        background: 'var(--gold)', color: 'var(--black)', border: 'none', borderRadius: 6,
+                        padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >Save</button>
+                    <button
+                      onClick={() => setEditingHours(false)}
+                      style={{
+                        background: 'none', color: 'var(--gray)', border: '1px solid var(--border)', borderRadius: 6,
+                        padding: '6px 14px', fontSize: 12, cursor: 'pointer',
+                      }}
+                    >Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p>{hoursLabel}</p>
+                  <p style={{ color: isBreakfast ? '#1a1a1a' : 'var(--white)', fontWeight: 600, fontSize: 16, transition: 'color 0.4s ease' }}>{hoursTime}</p>
+                  <p style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic', transition: 'color 0.4s ease' }}>{hoursNote}</p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => { setTempLabel(hoursLabel); setTempTime(hoursTime); setTempNote(hoursNote); setEditingHours(true) }}
+                      style={{
+                        background: 'none', border: '1px dashed var(--border)', borderRadius: 6,
+                        color: 'var(--gold)', padding: '4px 12px', fontSize: 11, marginTop: 10, cursor: 'pointer',
+                        opacity: 0.7,
+                      }}
+                    >Edit Hours</button>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
