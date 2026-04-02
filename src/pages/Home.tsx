@@ -19,29 +19,25 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [hoursLabel, setHoursLabel] = useState('Monday - Sunday')
-  const [hoursTime, setHoursTime] = useState('7 AM - 9 PM')
+  const [hours, setHours] = useState<any[]>([])
   const [hoursNote, setHoursNote] = useState('Open 7 days a week')
   const [editingHours, setEditingHours] = useState(false)
-  const [tempLabel, setTempLabel] = useState('')
-  const [tempTime, setTempTime] = useState('')
+  const [tempHours, setTempHours] = useState<any[]>([])
   const [tempNote, setTempNote] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sliderRef = useRef<HTMLDivElement>(null)
 
   const fetchMenu = useCallback(async () => {
-    const [catRes, itemRes, settingsRes] = await Promise.all([
+    const [catRes, itemRes, hoursRes, settingsRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
       supabase.from('menu_items').select('*').order('sort_order'),
+      supabase.from('business_hours').select('*').order('day_order'),
       supabase.from('site_settings').select('*').eq('id', 'main').single(),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
-    if (settingsRes.data) {
-      setHoursLabel(settingsRes.data.hours_label)
-      setHoursTime(settingsRes.data.hours_time)
-      setHoursNote(settingsRes.data.hours_note)
-    }
+    if (hoursRes.data) setHours(hoursRes.data)
+    if (settingsRes.data) setHoursNote(settingsRes.data.hours_note)
     setLoading(false)
   }, [])
 
@@ -490,44 +486,65 @@ export default function Home() {
               <Clock size={20} color={isBreakfast ? '#8B6914' : 'var(--gold)'} />
               <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, color: isBreakfast ? '#1a1a1a' : 'var(--white)', transition: 'color 0.4s ease' }}>Hours</h3>
             </div>
-            <div style={{ fontSize: 14, color: isBreakfast ? '#666' : 'var(--gray)', lineHeight: 2, transition: 'color 0.4s ease' }}>
+            <div style={{ fontSize: 14, color: isBreakfast ? '#666' : 'var(--gray)', transition: 'color 0.4s ease' }}>
               {editingHours ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <input
-                    value={tempLabel}
-                    onChange={e => setTempLabel(e.target.value)}
-                    placeholder="e.g. Monday - Sunday"
-                    style={{
-                      background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
-                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
-                    }}
-                  />
-                  <input
-                    value={tempTime}
-                    onChange={e => setTempTime(e.target.value)}
-                    placeholder="e.g. 7 AM - 9 PM"
-                    style={{
-                      background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
-                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
-                    }}
-                  />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {tempHours.map((h, i) => (
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 36, fontSize: 12, color: 'var(--gold)', fontWeight: 600 }}>
+                        {h.day_name.slice(0, 3)}
+                      </span>
+                      {h.is_closed ? (
+                        <span style={{ fontSize: 13, color: 'var(--gray)', fontStyle: 'italic', flex: 1 }}>Closed</span>
+                      ) : (
+                        <>
+                          <input
+                            value={h.open_time}
+                            onChange={e => { const u = [...tempHours]; u[i] = { ...u[i], open_time: e.target.value }; setTempHours(u) }}
+                            style={{
+                              background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                              color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: 80,
+                            }}
+                          />
+                          <span style={{ color: 'var(--gray)', fontSize: 12 }}>-</span>
+                          <input
+                            value={h.close_time}
+                            onChange={e => { const u = [...tempHours]; u[i] = { ...u[i], close_time: e.target.value }; setTempHours(u) }}
+                            style={{
+                              background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                              color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: 80,
+                            }}
+                          />
+                        </>
+                      )}
+                      <button
+                        onClick={() => { const u = [...tempHours]; u[i] = { ...u[i], is_closed: !u[i].is_closed }; setTempHours(u) }}
+                        style={{
+                          background: 'none', border: 'none', fontSize: 10, cursor: 'pointer',
+                          color: h.is_closed ? 'var(--gold)' : '#ef4444', opacity: 0.7,
+                        }}
+                      >{h.is_closed ? 'Open' : 'Close'}</button>
+                    </div>
+                  ))}
                   <input
                     value={tempNote}
                     onChange={e => setTempNote(e.target.value)}
-                    placeholder="e.g. Open 7 days a week"
+                    placeholder="Note (e.g. Open 7 days a week)"
                     style={{
                       background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 6,
-                      color: 'var(--white)', padding: '6px 10px', fontSize: 14, outline: 'none', width: '100%',
+                      color: 'var(--white)', padding: '6px 10px', fontSize: 13, outline: 'none', width: '100%', marginTop: 6,
                     }}
                   />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                     <button
                       onClick={async () => {
-                        await supabase.from('site_settings').update({
-                          hours_label: tempLabel, hours_time: tempTime, hours_note: tempNote,
-                        }).eq('id', 'main')
-                        setHoursLabel(tempLabel)
-                        setHoursTime(tempTime)
+                        for (const h of tempHours) {
+                          await supabase.from('business_hours').update({
+                            open_time: h.open_time, close_time: h.close_time, is_closed: h.is_closed,
+                          }).eq('id', h.id)
+                        }
+                        await supabase.from('site_settings').update({ hours_note: tempNote }).eq('id', 'main')
+                        setHours(tempHours)
                         setHoursNote(tempNote)
                         setEditingHours(false)
                       }}
@@ -547,12 +564,31 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  <p>{hoursLabel}</p>
-                  <p style={{ color: isBreakfast ? '#1a1a1a' : 'var(--white)', fontWeight: 600, fontSize: 16, transition: 'color 0.4s ease' }}>{hoursTime}</p>
-                  <p style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic', transition: 'color 0.4s ease' }}>{hoursNote}</p>
+                  {(() => {
+                    const allSame = hours.length > 0 && hours.every(h => !h.is_closed && h.open_time === hours[0].open_time && h.close_time === hours[0].close_time)
+                    if (allSame && hours.length > 0) {
+                      return (
+                        <>
+                          <p style={{ lineHeight: 2 }}>Monday - Sunday</p>
+                          <p style={{ color: isBreakfast ? '#1a1a1a' : 'var(--white)', fontWeight: 600, fontSize: 16, transition: 'color 0.4s ease' }}>{hours[0].open_time} - {hours[0].close_time}</p>
+                        </>
+                      )
+                    }
+                    return hours.map(h => (
+                      <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', lineHeight: 2 }}>
+                        <span>{h.day_name}</span>
+                        <span style={{ color: h.is_closed ? '#ef4444' : (isBreakfast ? '#1a1a1a' : 'var(--white)'), fontWeight: 600, transition: 'color 0.4s ease' }}>
+                          {h.is_closed ? 'Closed' : `${h.open_time} - ${h.close_time}`}
+                        </span>
+                      </div>
+                    ))
+                  })()}
+                  {hoursNote && (
+                    <p style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic', transition: 'color 0.4s ease' }}>{hoursNote}</p>
+                  )}
                   {isAdmin && (
                     <button
-                      onClick={() => { setTempLabel(hoursLabel); setTempTime(hoursTime); setTempNote(hoursNote); setEditingHours(true) }}
+                      onClick={() => { setTempHours(hours.map(h => ({ ...h }))); setTempNote(hoursNote); setEditingHours(true) }}
                       style={{
                         background: 'none', border: '1px dashed var(--border)', borderRadius: 6,
                         color: 'var(--gold)', padding: '4px 12px', fontSize: 11, marginTop: 10, cursor: 'pointer',
