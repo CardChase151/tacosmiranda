@@ -172,9 +172,9 @@ export default function Menu() {
       <div style={{
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 0,
         marginBottom: 32,
-        position: 'relative',
       }}>
         <div style={{
           flexShrink: 0,

@@ -250,9 +250,9 @@ export default function Home() {
         <div style={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'center',
           gap: 0,
           marginBottom: 32,
-          position: 'relative',
         }}>
           {/* Search Icon / Expanded Bar */}
           <div style={{
