@@ -13,7 +13,6 @@ interface Props {
 }
 
 export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories = [] }: Props) {
-  const [hover, setHover] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
@@ -27,14 +26,11 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
       <div
         style={{
           padding: '12px 0',
-          borderLeft: hover && isAdmin ? '2px solid var(--gold)' : '2px solid transparent',
+          borderLeft: isAdmin ? '2px solid var(--gold)' : '2px solid transparent',
           paddingLeft: 16,
           marginLeft: -16,
-          transition: 'border-color 0.2s',
           position: 'relative',
         }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => { setHover(false); setConfirmDelete(false) }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
@@ -62,7 +58,7 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
             ${item.price.toFixed(2)}
           </span>
 
-          {isAdmin && hover && (
+          {isAdmin && (
             <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
               <button
                 onClick={() => setEditOpen(true)}
