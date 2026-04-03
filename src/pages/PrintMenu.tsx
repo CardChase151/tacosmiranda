@@ -99,7 +99,7 @@ export default function PrintMenu() {
     const ctx = scaledCanvas.getContext('2d')!
     ctx.drawImage(sourceCanvas, 0, 0, width, height)
     const videoSource = scaledCanvas
-    const fps = 1 // static image, 1 fps is fine - keeps file small
+    const fps = 30
     const totalFrames = durationSec * fps
 
     const target = new ArrayBufferTarget()
@@ -127,7 +127,7 @@ export default function PrintMenu() {
         timestamp: i * (1_000_000 / fps),
         duration: 1_000_000 / fps,
       })
-      encoder.encode(frame, { keyFrame: i === 0 })
+      encoder.encode(frame, { keyFrame: i % 30 === 0 })
       frame.close()
     }
 
