@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Download, ArrowLeft } from 'lucide-react'
+import { FileImage, FileText, Film, ArrowLeft } from 'lucide-react'
 import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -10,7 +11,7 @@ export default function PrintMenu() {
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [downloading, setDownloading] = useState('')
+  const [status, setStatus] = useState('')
 
   const fetchMenu = useCallback(async () => {
     const [catRes, itemRes] = await Promise.all([
@@ -26,36 +27,94 @@ export default function PrintMenu() {
 
   const breakfastCats = categories.filter(c => c.meal_type === 'breakfast')
   const lunchCats = categories.filter(c => c.meal_type === 'lunch_dinner')
-
   const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
 
-  const handleDownload = async (elementId: string, filename: string) => {
-    setDownloading(elementId)
-    const el = document.getElementById(elementId)
-    if (!el) return
+  // Helper: capture element at full size
+  const captureElement = async (id: string) => {
+    const el = document.getElementById(id)
+    if (!el) return null
+    const wrapper = el.parentElement
+    const origTransform = wrapper?.style.transform || ''
+    const origMargin = wrapper?.style.marginBottom || ''
+    if (wrapper) { wrapper.style.transform = 'none'; wrapper.style.marginBottom = '0' }
+    await new Promise(r => setTimeout(r, 150))
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: null, useCORS: true, logging: false })
+    if (wrapper) { wrapper.style.transform = origTransform; wrapper.style.marginBottom = origMargin }
+    return canvas
+  }
+
+  // Download PDF (both pages in one file)
+  const handlePDF = async () => {
+    setStatus('Generating PDF...')
     try {
-      // Clone element out of the scaled preview so html2canvas gets full size
-      const wrapper = el.parentElement
-      const origTransform = wrapper?.style.transform || ''
-      const origMargin = wrapper?.style.marginBottom || ''
-      if (wrapper) {
-        wrapper.style.transform = 'none'
-        wrapper.style.marginBottom = '0'
+      const c1 = await captureElement('menu-breakfast')
+      const c2 = await captureElement('menu-lunch')
+      if (!c1 || !c2) return
+
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [c1.width / 2, c1.height / 2] })
+      pdf.addImage(c1.toDataURL('image/png'), 'PNG', 0, 0, c1.width / 2, c1.height / 2)
+      pdf.addPage([c2.width / 2, c2.height / 2], 'landscape')
+      pdf.addImage(c2.toDataURL('image/png'), 'PNG', 0, 0, c2.width / 2, c2.height / 2)
+      pdf.save('TacosMiranda_Menu.pdf')
+    } catch (e) { console.error(e) }
+    setStatus('')
+  }
+
+  // Download Images (2 separate PNGs)
+  const handleImages = async () => {
+    setStatus('Generating images...')
+    try {
+      const c1 = await captureElement('menu-breakfast')
+      const c2 = await captureElement('menu-lunch')
+      if (c1) {
+        const link = document.createElement('a')
+        link.download = 'TacosMiranda_Breakfast.png'
+        link.href = c1.toDataURL('image/png')
+        link.click()
       }
-      await new Promise(r => setTimeout(r, 100))
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: null, useCORS: true, logging: false })
-      if (wrapper) {
-        wrapper.style.transform = origTransform
-        wrapper.style.marginBottom = origMargin
+      await new Promise(r => setTimeout(r, 500))
+      if (c2) {
+        const link = document.createElement('a')
+        link.download = 'TacosMiranda_LunchDinner.png'
+        link.href = c2.toDataURL('image/png')
+        link.click()
       }
-      const link = document.createElement('a')
-      link.download = filename
-      link.href = canvas.toDataURL('image/png')
-      link.click()
-    } catch (e) {
-      console.error('Download error:', e)
-    }
-    setDownloading('')
+    } catch (e) { console.error(e) }
+    setStatus('')
+  }
+
+  // Download Video (webm, static menu image as looping video ~8 seconds)
+  const createVideo = async (canvas: HTMLCanvasElement, filename: string, durationSec: number = 8) => {
+    return new Promise<void>((resolve) => {
+      const stream = canvas.captureStream(30)
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' })
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = URL.createObjectURL(blob)
+        link.click()
+        URL.revokeObjectURL(link.href)
+        resolve()
+      }
+      recorder.start()
+      setTimeout(() => recorder.stop(), durationSec * 1000)
+    })
+  }
+
+  const handleVideos = async () => {
+    setStatus('Generating breakfast video (8 sec)...')
+    try {
+      const c1 = await captureElement('menu-breakfast')
+      if (c1) await createVideo(c1, 'TacosMiranda_Breakfast.webm', 8)
+
+      setStatus('Generating lunch/dinner video (8 sec)...')
+      const c2 = await captureElement('menu-lunch')
+      if (c2) await createVideo(c2, 'TacosMiranda_LunchDinner.webm', 8)
+    } catch (e) { console.error(e) }
+    setStatus('')
   }
 
   if (!isAdmin) {
@@ -75,61 +134,69 @@ export default function PrintMenu() {
     )
   }
 
+  const btnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '14px 28px', borderRadius: 10, border: 'none',
+    fontSize: 15, fontWeight: 600, cursor: 'pointer',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+  }
+
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', padding: '32px 24px 100px' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Top bar */}
+      <div style={{ maxWidth: 1200, margin: '0 auto 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--gold)', textDecoration: 'none', fontSize: 14 }}>
           <ArrowLeft size={16} /> Back to Site
         </a>
         <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, color: 'var(--white)', letterSpacing: 2 }}>
-          Print Menu Designer
+          Menu Export
         </h1>
         <div style={{ width: 100 }} />
       </div>
 
-      <DesignSection title="Classic Elegant" subtitle="Cream for breakfast, dark + gold for lunch/dinner">
-        <MenuPage id="v1-breakfast" onDownload={() => handleDownload('v1-breakfast', 'TacosMiranda_Breakfast.png')} downloading={downloading} label="Breakfast">
-          <V1Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
-        </MenuPage>
-        <MenuPage id="v1-lunch" onDownload={() => handleDownload('v1-lunch', 'TacosMiranda_LunchDinner.png')} downloading={downloading} label="Lunch & Dinner">
-          <V1Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
-        </MenuPage>
-      </DesignSection>
-    </div>
-  )
-}
-
-function DesignSection({ title, subtitle, children }: { title: string, subtitle: string, children: React.ReactNode }) {
-  return (
-    <div style={{ maxWidth: 1200, margin: '0 auto 80px' }}>
-      <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--gold)', marginBottom: 4 }}>{title}</h2>
-      <p style={{ color: 'var(--gray)', fontSize: 13, marginBottom: 24 }}>{subtitle}</p>
-      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {children}
+      {/* Download Buttons */}
+      <div style={{ maxWidth: 1200, margin: '0 auto 48px', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button onClick={handlePDF} disabled={!!status} style={{ ...btnStyle, background: 'var(--gold)', color: 'var(--black)', opacity: status ? 0.5 : 1 }}>
+          <FileText size={18} /> Download PDF
+        </button>
+        <button onClick={handleImages} disabled={!!status} style={{ ...btnStyle, background: '#FFFFFF', color: '#111', opacity: status ? 0.5 : 1 }}>
+          <FileImage size={18} /> Download Images
+        </button>
+        <button onClick={handleVideos} disabled={!!status} style={{ ...btnStyle, background: '#333', color: '#FFF', opacity: status ? 0.5 : 1 }}>
+          <Film size={18} /> Download Videos (for TV)
+        </button>
       </div>
-    </div>
-  )
-}
 
-function MenuPage({ id, onDownload, downloading, label, children }: { id: string, onDownload: () => void, downloading: string, label: string, children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</p>
-      <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
-        <div id={id}>{children}</div>
+      {status && (
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <p style={{ color: 'var(--gold)', fontSize: 14, fontStyle: 'italic' }}>{status}</p>
+        </div>
+      )}
+
+      {/* Previews */}
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* Breakfast Preview */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Breakfast</p>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
+              <div id="menu-breakfast">
+                <V1Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
+              </div>
+            </div>
+          </div>
+
+          {/* Lunch & Dinner Preview */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Lunch & Dinner</p>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
+              <div id="menu-lunch">
+                <V1Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <button
-        onClick={onDownload}
-        disabled={downloading === id}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'var(--gold)', color: 'var(--black)', border: 'none', borderRadius: 8,
-          padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          opacity: downloading === id ? 0.5 : 1,
-        }}
-      >
-        <Download size={14} /> {downloading === id ? 'Generating...' : 'Download'}
-      </button>
     </div>
   )
 }
@@ -142,7 +209,6 @@ interface PageProps {
   light?: boolean
 }
 
-// Split categories into N roughly equal columns
 function splitIntoColumns(cats: MenuCategory[], getItems: (id: string) => MenuItem[], cols: number) {
   const weighted = cats.map(c => ({ cat: c, count: getItems(c.id).length + 2 }))
   const columns: typeof weighted[] = Array.from({ length: cols }, () => [])
@@ -155,7 +221,6 @@ function splitIntoColumns(cats: MenuCategory[], getItems: (id: string) => MenuIt
   return columns
 }
 
-// Shared item row - no gradients, pure solid colors for html2canvas
 function ItemRow({ item, nameColor, priceColor, descColor, dotColor }: { item: MenuItem, nameColor: string, priceColor: string, descColor: string, dotColor: string }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -171,7 +236,6 @@ function ItemRow({ item, nameColor, priceColor, descColor, dotColor }: { item: M
   )
 }
 
-// ========== VERSION 1: Classic Elegant ==========
 function V1Page({ cats, getItems, title, subtitle, light }: PageProps) {
   const columns = splitIntoColumns(cats, getItems, 3)
   const bg = light ? '#FAF8F3' : '#0C0C0C'
@@ -230,4 +294,3 @@ function V1Page({ cats, getItems, title, subtitle, light }: PageProps) {
     </div>
   )
 }
-
