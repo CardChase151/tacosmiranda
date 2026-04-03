@@ -1,4 +1,4 @@
-import { Lock, LogOut } from 'lucide-react'
+import { Lock, LogOut, Printer } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 interface HeaderProps {
@@ -62,6 +62,18 @@ export default function Header({ onAdminClick }: HeaderProps) {
 
         {isAdmin ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <a
+              href="/admin/print-menu"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5,
+                textDecoration: 'none', transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+            >
+              <Printer size={14} /> Print Menu
+            </a>
             <span style={{ fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5 }}>
               Logged in as {user?.email?.split('@')[0] || 'Admin'}
             </span>
