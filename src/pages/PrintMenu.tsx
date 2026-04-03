@@ -218,7 +218,7 @@ export default function PrintMenu() {
           {/* Breakfast Preview */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Breakfast</p>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -715 }}>
               <div id="menu-breakfast">
                 <V1Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
               </div>
@@ -228,7 +228,7 @@ export default function PrintMenu() {
           {/* Lunch & Dinner Preview */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Lunch & Dinner</p>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -715 }}>
               <div id="menu-lunch">
                 <V1Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
               </div>
