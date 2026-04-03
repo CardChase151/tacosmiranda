@@ -122,7 +122,7 @@ function MenuPage({ id, onDownload, downloading, label, children }: { id: string
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</p>
-      <div style={{ transform: 'scale(0.45)', transformOrigin: 'top center', marginBottom: -580 }}>
+      <div style={{ transform: 'scale(0.35)', transformOrigin: 'top center', marginBottom: -500 }}>
         <div id={id}>
           {children}
         </div>
@@ -155,7 +155,7 @@ interface PageProps {
 function V1Page({ cats, getItems, title, subtitle }: PageProps) {
   return (
     <div style={{
-      width: 1100, minHeight: 1500, padding: '60px 70px',
+      width: 1500, minHeight: 1100, padding: '60px 70px',
       background: '#0C0C0C',
       border: '2px solid #C8A84E',
       fontFamily: "'Playfair Display', Georgia, serif",
@@ -218,7 +218,7 @@ function V1Page({ cats, getItems, title, subtitle }: PageProps) {
 function V2Page({ cats, getItems, title, subtitle }: PageProps) {
   return (
     <div style={{
-      width: 1100, minHeight: 1500, padding: '70px 80px',
+      width: 1500, minHeight: 1100, padding: '70px 80px',
       background: '#FFFFFF',
       fontFamily: "'Inter', -apple-system, sans-serif",
       position: 'relative',
@@ -268,7 +268,7 @@ function V2Page({ cats, getItems, title, subtitle }: PageProps) {
 function V3Page({ cats, getItems, title, subtitle }: PageProps) {
   return (
     <div style={{
-      width: 1100, minHeight: 1500, padding: '60px 70px',
+      width: 1500, minHeight: 1100, padding: '60px 70px',
       background: '#FDF6EC',
       fontFamily: "'Playfair Display', Georgia, serif",
       position: 'relative',
