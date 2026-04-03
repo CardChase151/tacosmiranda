@@ -86,8 +86,19 @@ export default function PrintMenu() {
 
   // Download Video as MP4 using VideoEncoder + mp4-muxer
   const createVideo = async (sourceCanvas: HTMLCanvasElement, filename: string, durationSec: number = 8) => {
-    const width = sourceCanvas.width
-    const height = sourceCanvas.height
+    // Scale down to fit within 1920x1080 for TV compatibility and encoder limits
+    const maxW = 1920
+    const maxH = 1080
+    const scale = Math.min(maxW / sourceCanvas.width, maxH / sourceCanvas.height, 1)
+    const width = Math.floor(sourceCanvas.width * scale / 2) * 2  // must be even
+    const height = Math.floor(sourceCanvas.height * scale / 2) * 2
+
+    const scaledCanvas = document.createElement('canvas')
+    scaledCanvas.width = width
+    scaledCanvas.height = height
+    const ctx = scaledCanvas.getContext('2d')!
+    ctx.drawImage(sourceCanvas, 0, 0, width, height)
+    const videoSource = scaledCanvas
     const fps = 1 // static image, 1 fps is fine - keeps file small
     const totalFrames = durationSec * fps
 
@@ -104,7 +115,7 @@ export default function PrintMenu() {
     })
 
     encoder.configure({
-      codec: 'avc1.640028',
+      codec: 'avc1.640032',
       width,
       height,
       bitrate: 5_000_000,
@@ -112,7 +123,7 @@ export default function PrintMenu() {
     })
 
     for (let i = 0; i < totalFrames; i++) {
-      const frame = new VideoFrame(sourceCanvas, {
+      const frame = new VideoFrame(videoSource, {
         timestamp: i * (1_000_000 / fps),
         duration: 1_000_000 / fps,
       })
