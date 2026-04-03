@@ -87,30 +87,12 @@ export default function PrintMenu() {
         <div style={{ width: 100 }} />
       </div>
 
-      <DesignSection title="Version 1 - Classic Elegant" subtitle="Cream for breakfast, dark + gold for lunch/dinner">
-        <MenuPage id="v1-breakfast" onDownload={() => handleDownload('v1-breakfast', 'TacosMiranda_Breakfast_V1.png')} downloading={downloading} label="Breakfast">
+      <DesignSection title="Classic Elegant" subtitle="Cream for breakfast, dark + gold for lunch/dinner">
+        <MenuPage id="v1-breakfast" onDownload={() => handleDownload('v1-breakfast', 'TacosMiranda_Breakfast.png')} downloading={downloading} label="Breakfast">
           <V1Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
         </MenuPage>
-        <MenuPage id="v1-lunch" onDownload={() => handleDownload('v1-lunch', 'TacosMiranda_LunchDinner_V1.png')} downloading={downloading} label="Lunch & Dinner">
+        <MenuPage id="v1-lunch" onDownload={() => handleDownload('v1-lunch', 'TacosMiranda_LunchDinner.png')} downloading={downloading} label="Lunch & Dinner">
           <V1Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
-        </MenuPage>
-      </DesignSection>
-
-      <DesignSection title="Version 2 - Modern Minimal" subtitle="Cream for breakfast, dark + gold for lunch/dinner">
-        <MenuPage id="v2-breakfast" onDownload={() => handleDownload('v2-breakfast', 'TacosMiranda_Breakfast_V2.png')} downloading={downloading} label="Breakfast">
-          <V2Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
-        </MenuPage>
-        <MenuPage id="v2-lunch" onDownload={() => handleDownload('v2-lunch', 'TacosMiranda_LunchDinner_V2.png')} downloading={downloading} label="Lunch & Dinner">
-          <V2Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
-        </MenuPage>
-      </DesignSection>
-
-      <DesignSection title="Version 3 - Warm Rustic" subtitle="Cream for breakfast, dark + gold for lunch/dinner">
-        <MenuPage id="v3-breakfast" onDownload={() => handleDownload('v3-breakfast', 'TacosMiranda_Breakfast_V3.png')} downloading={downloading} label="Breakfast">
-          <V3Page cats={breakfastCats} getItems={getItems} title="Breakfast" subtitle="Served Daily Until 12pm" light />
-        </MenuPage>
-        <MenuPage id="v3-lunch" onDownload={() => handleDownload('v3-lunch', 'TacosMiranda_LunchDinner_V3.png')} downloading={downloading} label="Lunch & Dinner">
-          <V3Page cats={lunchCats} getItems={getItems} title="Lunch & Dinner" subtitle="Served All Day" />
         </MenuPage>
       </DesignSection>
     </div>
@@ -176,14 +158,14 @@ function splitIntoColumns(cats: MenuCategory[], getItems: (id: string) => MenuIt
 // Shared item row - no gradients, pure solid colors for html2canvas
 function ItemRow({ item, nameColor, priceColor, descColor, dotColor }: { item: MenuItem, nameColor: string, priceColor: string, descColor: string, dotColor: string }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: nameColor, whiteSpace: 'nowrap' }}>{item.name}</span>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 19, fontWeight: 600, color: nameColor, whiteSpace: 'nowrap' }}>{item.name}</span>
         <span style={{ flex: 1, borderBottom: `1px dotted ${dotColor}`, minWidth: 16 }} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: priceColor, whiteSpace: 'nowrap' }}>${item.price.toFixed(2)}</span>
+        <span style={{ fontSize: 19, fontWeight: 700, color: priceColor, whiteSpace: 'nowrap' }}>${item.price.toFixed(2)}</span>
       </div>
       {item.description && (
-        <p style={{ fontSize: 11, color: descColor, marginTop: 2, lineHeight: 1.4, fontFamily: "'Inter', sans-serif" }}>{item.description}</p>
+        <p style={{ fontSize: 14, color: descColor, marginTop: 3, lineHeight: 1.5, fontFamily: "'Inter', sans-serif" }}>{item.description}</p>
       )}
     </div>
   )
@@ -211,15 +193,15 @@ function V1Page({ cats, getItems, title, subtitle, light }: PageProps) {
       <div style={{ position: 'absolute', bottom: 14, left: 14, width: 36, height: 36, borderBottom: `2px solid ${accent}`, borderLeft: `2px solid ${accent}` }} />
       <div style={{ position: 'absolute', bottom: 14, right: 14, width: 36, height: 36, borderBottom: `2px solid ${accent}`, borderRight: `2px solid ${accent}` }} />
 
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <h1 style={{ fontSize: 42, color: accent, letterSpacing: 8, margin: 0, textTransform: 'uppercase' }}>Tacos Miranda</h1>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '10px 0' }}>
-          <div style={{ width: 180, height: 1, background: accent }} />
-          <div style={{ width: 8, height: 8, background: accent, transform: 'rotate(45deg)' }} />
-          <div style={{ width: 180, height: 1, background: accent }} />
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <h1 style={{ fontSize: 56, color: accent, letterSpacing: 10, margin: 0, textTransform: 'uppercase' }}>Tacos Miranda</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '14px 0' }}>
+          <div style={{ width: 200, height: 1, background: accent }} />
+          <div style={{ width: 10, height: 10, background: accent, transform: 'rotate(45deg)' }} />
+          <div style={{ width: 200, height: 1, background: accent }} />
         </div>
-        <h2 style={{ fontSize: 24, color: textPrimary, letterSpacing: 6, fontWeight: 400, margin: 0, textTransform: 'uppercase' }}>{title}</h2>
-        <p style={{ fontSize: 12, color: textSecondary, marginTop: 6, fontStyle: 'italic', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>{subtitle}</p>
+        <h2 style={{ fontSize: 32, color: textPrimary, letterSpacing: 8, fontWeight: 400, margin: 0, textTransform: 'uppercase' }}>{title}</h2>
+        <p style={{ fontSize: 16, color: textSecondary, marginTop: 8, fontStyle: 'italic', letterSpacing: 3, fontFamily: "'Inter', sans-serif" }}>{subtitle}</p>
       </div>
 
       <div style={{ display: 'flex', gap: 40 }}>
@@ -227,7 +209,7 @@ function V1Page({ cats, getItems, title, subtitle, light }: PageProps) {
           <div key={ci} style={{ flex: 1 }}>
             {col.map(({ cat }) => (
               <div key={cat.id} style={{ marginBottom: 28 }}>
-                <h3 style={{ fontSize: 16, color: accent, textTransform: 'uppercase', letterSpacing: 3, textAlign: 'center', marginBottom: 4 }}>{cat.name}</h3>
+                <h3 style={{ fontSize: 22, color: accent, textTransform: 'uppercase', letterSpacing: 4, textAlign: 'center', marginBottom: 6 }}>{cat.name}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <div style={{ flex: 1, height: 1, background: accentDim }} />
                   <div style={{ width: 5, height: 5, background: accent, transform: 'rotate(45deg)', flexShrink: 0 }} />
@@ -242,122 +224,10 @@ function V1Page({ cats, getItems, title, subtitle, light }: PageProps) {
         ))}
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: `1px solid ${accentDim}` }}>
-        <p style={{ fontSize: 11, color: textSecondary, letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>21582 Brookhurst St, Huntington Beach, CA 92646 | (657) 845-4011</p>
+      <div style={{ textAlign: 'center', marginTop: 30, paddingTop: 20, borderTop: `1px solid ${accentDim}` }}>
+        <p style={{ fontSize: 14, color: textSecondary, letterSpacing: 3, fontFamily: "'Inter', sans-serif" }}>21582 Brookhurst St, Huntington Beach, CA 92646 | (657) 845-4011</p>
       </div>
     </div>
   )
 }
 
-// ========== VERSION 2: Modern Minimal ==========
-function V2Page({ cats, getItems, title, subtitle, light }: PageProps) {
-  const columns = splitIntoColumns(cats, getItems, 3)
-  const bg = light ? '#FAF8F3' : '#0C0C0C'
-  const textPrimary = light ? '#111' : '#FFFFFF'
-  const textSecondary = light ? '#888' : '#9CA3AF'
-  const accent = light ? '#8B6914' : '#C8A84E'
-  const line = light ? '#E5E5E5' : '#333'
-  const dotColor = light ? '#D4CFC3' : '#333'
-
-  return (
-    <div style={{
-      width: 1500, minHeight: 1100, padding: '50px 70px',
-      background: bg,
-      fontFamily: "'Inter', -apple-system, sans-serif",
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <h1 style={{ fontSize: 14, color: textSecondary, letterSpacing: 8, margin: '0 0 6px', textTransform: 'uppercase', fontWeight: 400 }}>Tacos Miranda</h1>
-        <h2 style={{ fontSize: 40, color: textPrimary, letterSpacing: 2, fontWeight: 700, margin: '0 0 6px', fontFamily: "'Playfair Display', Georgia, serif" }}>{title}</h2>
-        <div style={{ width: 50, height: 3, background: accent, margin: '10px auto' }} />
-        <p style={{ fontSize: 12, color: textSecondary, letterSpacing: 3, textTransform: 'uppercase' }}>{subtitle}</p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 50 }}>
-        {columns.map((col, ci) => (
-          <div key={ci} style={{ flex: 1 }}>
-            {col.map(({ cat }) => (
-              <div key={cat.id} style={{ marginBottom: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                  <div style={{ flex: 1, height: 1, background: line }} />
-                  <h3 style={{ fontSize: 11, color: accent, textTransform: 'uppercase', letterSpacing: 4, fontWeight: 600, whiteSpace: 'nowrap', margin: 0 }}>{cat.name}</h3>
-                  <div style={{ flex: 1, height: 1, background: line }} />
-                </div>
-                {getItems(cat.id).map(item => (
-                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textSecondary} dotColor={dotColor} />
-                ))}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: `1px solid ${line}` }}>
-        <p style={{ fontSize: 10, color: textSecondary, letterSpacing: 3, textTransform: 'uppercase' }}>21582 Brookhurst St, Huntington Beach, CA 92646 | (657) 845-4011</p>
-      </div>
-    </div>
-  )
-}
-
-// ========== VERSION 3: Warm Rustic ==========
-function V3Page({ cats, getItems, title, subtitle, light }: PageProps) {
-  const columns = splitIntoColumns(cats, getItems, 3)
-  const bg = light ? '#FDF6EC' : '#1A0E08'
-  const accent = light ? '#8B2500' : '#C8A84E'
-  const accentSecondary = light ? '#8B6914' : '#C8A84E'
-  const textPrimary = light ? '#3D2B1F' : '#F5E6D0'
-  const textSecondary = light ? '#7A6B5D' : '#9CA3AF'
-  const borderColor = light ? '#8B2500' : '#C8A84E'
-  const innerBorder = light ? 'rgba(139,37,0,0.15)' : 'rgba(200,168,78,0.15)'
-  const dotColor = light ? 'rgba(139,37,0,0.15)' : 'rgba(200,168,78,0.15)'
-
-  return (
-    <div style={{
-      width: 1500, minHeight: 1100, padding: '50px 60px',
-      background: bg,
-      fontFamily: "'Playfair Display', Georgia, serif",
-      border: `3px double ${borderColor}`,
-      position: 'relative',
-    }}>
-      <div style={{ position: 'absolute', inset: 10, border: `1px solid ${innerBorder}`, pointerEvents: 'none' }} />
-
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <p style={{ fontSize: 11, color: accentSecondary, letterSpacing: 6, textTransform: 'uppercase', margin: '0 0 4px', fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>Est. Huntington Beach, CA</p>
-        <h1 style={{ fontSize: 42, color: accent, letterSpacing: 4, margin: '0 0 6px' }}>Tacos Miranda</h1>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '8px 0' }}>
-          <div style={{ width: 160, height: 1, background: accent }} />
-          <span style={{ fontSize: 16, color: accent }}>&#9830;</span>
-          <div style={{ width: 160, height: 1, background: accent }} />
-        </div>
-        <h2 style={{ fontSize: 26, color: textPrimary, letterSpacing: 6, fontWeight: 400, textTransform: 'uppercase', margin: 0 }}>{title}</h2>
-        <p style={{ fontSize: 12, color: accentSecondary, marginTop: 6, fontStyle: 'italic', letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>{subtitle}</p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 40 }}>
-        {columns.map((col, ci) => (
-          <div key={ci} style={{ flex: 1 }}>
-            {col.map(({ cat }) => (
-              <div key={cat.id} style={{ marginBottom: 28 }}>
-                <div style={{ textAlign: 'center', marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 16, color: accent, textTransform: 'uppercase', letterSpacing: 3, marginBottom: 4 }}>{cat.name}</h3>
-                  <div style={{ width: 36, height: 2, background: accentSecondary, margin: '0 auto' }} />
-                </div>
-                {getItems(cat.id).map(item => (
-                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textSecondary} dotColor={dotColor} />
-                ))}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
-          <div style={{ width: 260, height: 1, background: innerBorder }} />
-          <span style={{ fontSize: 14, color: accent }}>&#9830;</span>
-          <div style={{ width: 260, height: 1, background: innerBorder }} />
-        </div>
-        <p style={{ fontSize: 11, color: textSecondary, letterSpacing: 2, fontFamily: "'Inter', sans-serif" }}>21582 Brookhurst St, Huntington Beach, CA 92646 | (657) 845-4011</p>
-      </div>
-    </div>
-  )
-}
