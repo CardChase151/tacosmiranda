@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { FileImage, FileText, Film, ArrowLeft } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -83,36 +84,63 @@ export default function PrintMenu() {
     setStatus('')
   }
 
-  // Download Video (webm, static menu image as looping video ~8 seconds)
-  const createVideo = async (canvas: HTMLCanvasElement, filename: string, durationSec: number = 8) => {
-    return new Promise<void>((resolve) => {
-      const stream = canvas.captureStream(30)
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' })
-      const chunks: Blob[] = []
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' })
-        const link = document.createElement('a')
-        link.download = filename
-        link.href = URL.createObjectURL(blob)
-        link.click()
-        URL.revokeObjectURL(link.href)
-        resolve()
-      }
-      recorder.start()
-      setTimeout(() => recorder.stop(), durationSec * 1000)
+  // Download Video as MP4 using VideoEncoder + mp4-muxer
+  const createVideo = async (sourceCanvas: HTMLCanvasElement, filename: string, durationSec: number = 8) => {
+    const width = sourceCanvas.width
+    const height = sourceCanvas.height
+    const fps = 1 // static image, 1 fps is fine - keeps file small
+    const totalFrames = durationSec * fps
+
+    const target = new ArrayBufferTarget()
+    const muxer = new Muxer({
+      target,
+      video: { codec: 'avc', width, height },
+      fastStart: 'in-memory',
     })
+
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error: (e) => console.error('Encoder error:', e),
+    })
+
+    encoder.configure({
+      codec: 'avc1.640028',
+      width,
+      height,
+      bitrate: 5_000_000,
+      framerate: fps,
+    })
+
+    for (let i = 0; i < totalFrames; i++) {
+      const frame = new VideoFrame(sourceCanvas, {
+        timestamp: i * (1_000_000 / fps),
+        duration: 1_000_000 / fps,
+      })
+      encoder.encode(frame, { keyFrame: i === 0 })
+      frame.close()
+    }
+
+    await encoder.flush()
+    encoder.close()
+    muxer.finalize()
+
+    const blob = new Blob([target.buffer], { type: 'video/mp4' })
+    const link = document.createElement('a')
+    link.download = filename
+    link.href = URL.createObjectURL(blob)
+    link.click()
+    URL.revokeObjectURL(link.href)
   }
 
   const handleVideos = async () => {
-    setStatus('Generating breakfast video (8 sec)...')
+    setStatus('Generating breakfast video...')
     try {
       const c1 = await captureElement('menu-breakfast')
-      if (c1) await createVideo(c1, 'TacosMiranda_Breakfast.webm', 8)
+      if (c1) await createVideo(c1, 'TacosMiranda_Breakfast.mp4', 8)
 
-      setStatus('Generating lunch/dinner video (8 sec)...')
+      setStatus('Generating lunch/dinner video...')
       const c2 = await captureElement('menu-lunch')
-      if (c2) await createVideo(c2, 'TacosMiranda_LunchDinner.webm', 8)
+      if (c2) await createVideo(c2, 'TacosMiranda_LunchDinner.mp4', 8)
     } catch (e) { console.error(e) }
     setStatus('')
   }
