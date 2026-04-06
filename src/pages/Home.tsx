@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MapPin, Clock, Phone, ShoppingBag, Search, X } from 'lucide-react'
+import { MapPin, Clock, Phone, ShoppingBag, Search, X, Pencil, Check, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -16,16 +16,19 @@ export default function Home() {
     const hour = parseInt(pstHour, 10)
     return (hour >= 3 && hour < 10) ? 'breakfast' : 'lunch_dinner'
   })
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [hours, setHours] = useState<any[]>([])
   const [hoursNote, setHoursNote] = useState('Open 7 days a week')
   const [editingHours, setEditingHours] = useState(false)
   const [tempHours, setTempHours] = useState<any[]>([])
   const [tempNote, setTempNote] = useState('')
+  const [promoEnabled, setPromoEnabled] = useState(false)
+  const [promoTitle, setPromoTitle] = useState('')
+  const [promoItems, setPromoItems] = useState('')
+  const [editingPromo, setEditingPromo] = useState(false)
+  const [tempPromoTitle, setTempPromoTitle] = useState('')
+  const [tempPromoItems, setTempPromoItems] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const sliderRef = useRef<HTMLDivElement>(null)
 
   const fetchMenu = useCallback(async () => {
     const [catRes, itemRes, hoursRes, settingsRes] = await Promise.all([
@@ -37,7 +40,12 @@ export default function Home() {
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
     if (hoursRes.data) setHours(hoursRes.data)
-    if (settingsRes.data) setHoursNote(settingsRes.data.hours_note)
+    if (settingsRes.data) {
+      setHoursNote(settingsRes.data.hours_note)
+      setPromoEnabled(settingsRes.data.promo_enabled ?? false)
+      setPromoTitle(settingsRes.data.promo_title ?? '')
+      setPromoItems(settingsRes.data.promo_items ?? '')
+    }
     setLoading(false)
   }, [])
 
@@ -60,26 +68,18 @@ export default function Home() {
 
   const filteredCategories = categories.filter(c => c.meal_type === mealType)
 
-  useEffect(() => {
-    if (filteredCategories.length > 0) {
-      setActiveCategory(filteredCategories[0].id)
-    }
-  }, [mealType, categories.length])
-
   const searchLower = searchQuery.toLowerCase().trim()
   const searchedItems = searchLower
     ? items.filter(i => i.name.toLowerCase().includes(searchLower) || i.description?.toLowerCase().includes(searchLower))
     : []
   const searchedCategoryIds = Array.from(new Set(searchedItems.map(i => i.category_id)))
 
-  const displayCategories = searchOpen && searchLower
+  const displayCategories = searchLower
     ? categories.filter(c => searchedCategoryIds.includes(c.id))
-    : activeCategory
-      ? filteredCategories.filter(c => c.id === activeCategory)
-      : filteredCategories
+    : filteredCategories
 
   const displayItems = (catId: string) => {
-    if (searchOpen && searchLower) {
+    if (searchLower) {
       return searchedItems.filter(i => i.category_id === catId)
     }
     return items.filter(i => i.category_id === catId)
@@ -87,6 +87,140 @@ export default function Home() {
 
   return (
     <div>
+      {/* Promo Banner */}
+      {(promoEnabled || isAdmin) && promoTitle && (
+        <div style={{
+          background: isBreakfast
+            ? 'linear-gradient(135deg, #8B6914 0%, #A67C00 100%)'
+            : 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)',
+          border: isBreakfast ? 'none' : '1px solid var(--gold)',
+          padding: '20px 24px',
+          textAlign: 'center',
+          position: 'relative',
+          opacity: promoEnabled ? 1 : 0.5,
+        }}>
+          {editingPromo ? (
+            <div style={{ maxWidth: 500, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                value={tempPromoTitle}
+                onChange={e => setTempPromoTitle(e.target.value)}
+                placeholder="Banner headline"
+                autoFocus
+                style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 6,
+                  color: '#fff',
+                  padding: '8px 12px',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  textAlign: 'center',
+                  outline: 'none',
+                }}
+              />
+              <textarea
+                value={tempPromoItems}
+                onChange={e => setTempPromoItems(e.target.value)}
+                placeholder="Items (comma separated)"
+                rows={2}
+                style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 6,
+                  color: '#fff',
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  textAlign: 'center',
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <button
+                  onClick={async () => {
+                    await supabase.from('site_settings').update({
+                      promo_title: tempPromoTitle,
+                      promo_items: tempPromoItems,
+                    }).eq('id', 'main')
+                    setPromoTitle(tempPromoTitle)
+                    setPromoItems(tempPromoItems)
+                    setEditingPromo(false)
+                  }}
+                  style={{
+                    background: '#fff', color: '#1a1a1a', border: 'none', borderRadius: 6,
+                    padding: '6px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                ><Check size={14} /> Save</button>
+                <button
+                  onClick={() => setEditingPromo(false)}
+                  style={{
+                    background: 'none', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: 6, padding: '6px 16px', fontSize: 12, cursor: 'pointer',
+                  }}
+                >Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p style={{
+                color: isBreakfast ? '#FAF8F3' : 'var(--gold)',
+                fontSize: 16,
+                fontWeight: 700,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                margin: 0,
+              }}>
+                {promoTitle}
+              </p>
+              {promoItems && (
+                <p style={{
+                  color: isBreakfast ? 'rgba(250,248,243,0.85)' : 'rgba(200,168,78,0.7)',
+                  fontSize: 13,
+                  marginTop: 6,
+                  marginBottom: 0,
+                  letterSpacing: 0.5,
+                }}>
+                  {promoItems.split(',').map(s => s.trim()).filter(Boolean).join('  /  ')}
+                </p>
+              )}
+              {isAdmin && (
+                <div style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  display: 'flex',
+                  gap: 6,
+                }}>
+                  <button
+                    onClick={() => { setTempPromoTitle(promoTitle); setTempPromoItems(promoItems); setEditingPromo(true) }}
+                    title="Edit banner"
+                    style={{
+                      background: 'rgba(0,0,0,0.3)', border: 'none', borderRadius: 4,
+                      color: '#fff', width: 28, height: 28, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', cursor: 'pointer',
+                    }}
+                  ><Pencil size={14} /></button>
+                  <button
+                    onClick={async () => {
+                      const next = !promoEnabled
+                      await supabase.from('site_settings').update({ promo_enabled: next }).eq('id', 'main')
+                      setPromoEnabled(next)
+                    }}
+                    title={promoEnabled ? 'Hide banner from public' : 'Show banner to public'}
+                    style={{
+                      background: 'rgba(0,0,0,0.3)', border: 'none', borderRadius: 4,
+                      color: promoEnabled ? '#4ade80' : '#ef4444', width: 28, height: 28,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    }}
+                  >{promoEnabled ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Hero */}
       <section className="hero-section" style={{
         display: 'flex',
@@ -259,135 +393,58 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Category Slider with Search */}
+        {/* Search */}
         <div style={{
           display: 'flex',
-          alignItems: 'center',
           justifyContent: 'center',
-          gap: 0,
           marginBottom: 32,
         }}>
-          {/* Search Icon / Expanded Bar */}
           <div style={{
-            flexShrink: 0,
-            zIndex: 2,
             display: 'flex',
             alignItems: 'center',
-            transition: 'all 0.3s ease',
+            gap: 8,
+            background: isBreakfast ? '#FFFFFF' : 'var(--dark-card)',
+            border: isBreakfast ? '1px solid #D4CFC3' : '1px solid var(--border)',
+            borderRadius: 50,
+            padding: '8px 16px',
+            boxShadow: isBreakfast ? '0 2px 8px rgba(0,0,0,0.06)' : '0 2px 8px rgba(0,0,0,0.2)',
+            width: '100%',
+            maxWidth: 400,
+            transition: 'all 0.4s ease',
           }}>
-            {searchOpen ? (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: isBreakfast ? '#FFFFFF' : 'var(--dark-card)',
-                border: isBreakfast ? '1px solid #D4CFC3' : '1px solid var(--border)',
-                borderRadius: 50,
-                padding: '6px 12px',
-                boxShadow: isBreakfast ? '0 2px 8px rgba(0,0,0,0.06)' : '0 2px 8px rgba(0,0,0,0.2)',
+            <Search size={16} color={isBreakfast ? '#8B6914' : 'var(--gold)'} style={{ flexShrink: 0 }} />
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search menu..."
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: isBreakfast ? '#1a1a1a' : 'var(--white)',
+                fontSize: 14,
+                fontFamily: 'var(--font-body)',
                 width: '100%',
-                maxWidth: 500,
-              }}>
-                <Search size={16} color={isBreakfast ? '#8B6914' : 'var(--gold)'} style={{ flexShrink: 0 }} />
-                <input
-                  ref={searchInputRef}
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search menu..."
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: isBreakfast ? '#1a1a1a' : 'var(--white)',
-                    fontSize: 14,
-                    fontFamily: 'var(--font-body)',
-                    width: '100%',
-                  }}
-                />
-                <button
-                  onClick={() => { setSearchOpen(false); setSearchQuery('') }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: isBreakfast ? '#888' : 'var(--gray)',
-                    cursor: 'pointer',
-                    padding: 4,
-                    display: 'flex',
-                    flexShrink: 0,
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
+              }}
+            />
+            {searchQuery && (
               <button
-                onClick={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 100) }}
+                onClick={() => setSearchQuery('')}
                 style={{
                   background: 'none',
-                  border: isBreakfast ? '1px solid #D4CFC3' : '1px solid var(--border)',
-                  borderRadius: 50,
-                  width: 38,
-                  height: 38,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  border: 'none',
+                  color: isBreakfast ? '#888' : 'var(--gray)',
                   cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
                   flexShrink: 0,
-                  marginRight: 8,
-                  transition: 'all 0.25s ease',
-                  color: isBreakfast ? '#8B6914' : 'var(--gold)',
                 }}
               >
-                <Search size={16} />
+                <X size={16} />
               </button>
             )}
           </div>
-
-          {/* Category Pills */}
-          {!searchOpen && (
-            <div
-              ref={sliderRef}
-              style={{
-                display: 'flex',
-                gap: 8,
-                overflowX: 'auto',
-                scrollBehavior: 'smooth',
-                padding: '8px 4px',
-                msOverflowStyle: 'none',
-                scrollbarWidth: 'none',
-                flexWrap: 'nowrap',
-              }}
-            >
-              {filteredCategories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: 50,
-                    border: activeCategory === cat.id
-                      ? (isBreakfast ? '1px solid #8B6914' : '1px solid var(--gold)')
-                      : (isBreakfast ? '1px solid #D4CFC3' : '1px solid var(--border)'),
-                    background: activeCategory === cat.id
-                      ? (isBreakfast ? 'rgba(139,105,20,0.1)' : 'rgba(200,168,78,0.12)')
-                      : 'transparent',
-                    color: activeCategory === cat.id
-                      ? (isBreakfast ? '#8B6914' : 'var(--gold)')
-                      : (isBreakfast ? '#888' : 'var(--gray)'),
-                    fontSize: 13,
-                    fontWeight: 500,
-                    letterSpacing: 0.5,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.25s ease',
-                    flexShrink: 0,
-                  }}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {loading ? (
@@ -395,9 +452,9 @@ export default function Home() {
         ) : (
           <div className="menu-grid" style={{
             display: 'grid',
-            gridTemplateColumns: displayCategories.length === 1 ? '1fr' : 'repeat(3, 1fr)',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
             gap: 24,
-            maxWidth: displayCategories.length === 1 ? 700 : 1200,
+            maxWidth: 1200,
             margin: '0 auto',
           }}>
             {displayCategories.map(cat => (
