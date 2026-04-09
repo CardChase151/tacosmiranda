@@ -6,6 +6,19 @@
 [functions]
   node_bundler = "esbuild"
 
+# CloudPRNT settings handshake - printer requests this before polling
+[[redirects]]
+  from = "/cloudprnt-setting.json"
+  to = "/.netlify/functions/cloudprnt-settings"
+  status = 200
+
+# CloudPRNT server endpoint
+[[redirects]]
+  from = "/cloudprnt"
+  to = "/.netlify/functions/cloudprnt"
+  status = 200
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
