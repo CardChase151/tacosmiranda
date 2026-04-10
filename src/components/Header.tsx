@@ -59,6 +59,35 @@ export default function Header({ onAdminClick }: HeaderProps) {
         >
           Location
         </button>
+        {isAdmin && (
+          <>
+            <a
+              href="/order"
+              style={{
+                ...navStyle,
+                color: 'var(--gold)',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >
+              Order Online
+            </a>
+            <a
+              href="/my-orders"
+              style={{
+                ...navStyle,
+                color: '#60a5fa',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
+              onMouseLeave={e => e.currentTarget.style.color = '#60a5fa'}
+            >
+              My Orders
+            </a>
+          </>
+        )}
 
         {isAdmin ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
