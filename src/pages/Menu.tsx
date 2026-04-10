@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { FileDown, Search, X, Plus, Check } from 'lucide-react'
+import { FileDown, Search, X, Plus, Check, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
 import MenuSection from '../components/MenuSection'
+import RearrangeMenu from '../components/RearrangeMenu'
 import { generateMenuPdf } from '../utils/menuPdf'
 
 export default function Menu() {
@@ -20,6 +21,7 @@ export default function Menu() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [addingCategory, setAddingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [rearranging, setRearranging] = useState(false)
 
   const handleAddCategory = async () => {
     const trimmed = newCategoryName.trim()
@@ -249,28 +251,53 @@ export default function Menu() {
       {isAdmin && (
         <div style={{ maxWidth: 600, margin: '32px auto 0' }}>
           {!addingCategory ? (
-            <button
-              onClick={() => setAddingCategory(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'none',
-                border: isBreakfast ? '1px dashed #D4CFC3' : '1px dashed var(--border)',
-                borderRadius: 8,
-                color: isBreakfast ? '#8B6914' : 'var(--gold)',
-                padding: '12px 16px',
-                fontSize: 13,
-                width: '100%',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontWeight: 600,
-                letterSpacing: 0.5,
-                textTransform: 'uppercase',
-              }}
-            >
-              <Plus size={14} /> Add {isBreakfast ? 'Breakfast' : 'Lunch & Dinner'} Category
-            </button>
+            <>
+              <button
+                onClick={() => setRearranging(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'none',
+                  border: isBreakfast ? '1px dashed #D4CFC3' : '1px dashed var(--border)',
+                  borderRadius: 8,
+                  color: isBreakfast ? '#8B6914' : 'var(--gold)',
+                  padding: '12px 16px',
+                  fontSize: 13,
+                  width: '100%',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                  marginBottom: 12,
+                }}
+              >
+                <ArrowUpDown size={14} /> Rearrange {isBreakfast ? 'Breakfast' : 'Lunch & Dinner'} Menu
+              </button>
+              <button
+                onClick={() => setAddingCategory(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'none',
+                  border: isBreakfast ? '1px dashed #D4CFC3' : '1px dashed var(--border)',
+                  borderRadius: 8,
+                  color: isBreakfast ? '#8B6914' : 'var(--gold)',
+                  padding: '12px 16px',
+                  fontSize: 13,
+                  width: '100%',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                }}
+              >
+                <Plus size={14} /> Add {isBreakfast ? 'Breakfast' : 'Lunch & Dinner'} Category
+              </button>
+            </>
           ) : (
             <div style={{
               padding: 16,
@@ -367,6 +394,17 @@ export default function Menu() {
       >
         <FileDown size={22} />
       </button>
+
+      {rearranging && (
+        <RearrangeMenu
+          categories={categories}
+          items={items}
+          mealType={mealType}
+          light={isBreakfast}
+          onClose={() => setRearranging(false)}
+          onSaved={fetchMenu}
+        />
+      )}
     </div>
   )
 }
