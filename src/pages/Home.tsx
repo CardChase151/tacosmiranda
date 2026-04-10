@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MapPin, Clock, Phone, ShoppingBag, Search, X, Pencil, Check, Eye, EyeOff } from 'lucide-react'
+import { MapPin, Clock, Phone, ShoppingBag, Search, X, Pencil, Check, Eye, EyeOff, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
 import MenuSection from '../components/MenuSection'
+import RearrangeMenu from '../components/RearrangeMenu'
 import { generateMenuPdf } from '../utils/menuPdf'
 
 export default function Home() {
@@ -28,6 +29,7 @@ export default function Home() {
   const [editingPromo, setEditingPromo] = useState(false)
   const [tempPromoTitle, setTempPromoTitle] = useState('')
   const [tempPromoItems, setTempPromoItems] = useState('')
+  const [rearranging, setRearranging] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const fetchMenu = useCallback(async () => {
@@ -447,6 +449,32 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Staff: Rearrange Menu button */}
+        {isAdmin && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+            <button
+              onClick={() => setRearranging(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'none',
+                border: isBreakfast ? '1px dashed #D4CFC3' : '1px dashed var(--border)',
+                borderRadius: 8,
+                color: isBreakfast ? '#8B6914' : 'var(--gold)',
+                padding: '10px 18px',
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+              }}
+            >
+              <ArrowUpDown size={14} /> Rearrange {isBreakfast ? 'Breakfast' : 'Lunch & Dinner'} Menu
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <p style={{ color: 'var(--gray)', fontSize: 14, textAlign: 'center' }}>Loading menu...</p>
         ) : (
@@ -699,6 +727,16 @@ export default function Home() {
         </div>
       </section>
 
+      {rearranging && (
+        <RearrangeMenu
+          categories={categories}
+          items={items}
+          mealType={mealType}
+          light={isBreakfast}
+          onClose={() => setRearranging(false)}
+          onSaved={fetchMenu}
+        />
+      )}
     </div>
   )
 }
