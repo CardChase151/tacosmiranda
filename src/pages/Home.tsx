@@ -15,7 +15,9 @@ export default function Home() {
   const [mealType, setMealType] = useState<'breakfast' | 'lunch_dinner'>(() => {
     const pstHour = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: false })
     const hour = parseInt(pstHour, 10)
-    return (hour >= 3 && hour < 10) ? 'breakfast' : 'lunch_dinner'
+    // Before 10am only breakfast is available, so default to it.
+    // After 10am default to lunch/dinner (breakfast still selectable all day).
+    return hour < 10 ? 'breakfast' : 'lunch_dinner'
   })
   const [searchQuery, setSearchQuery] = useState('')
   const [hours, setHours] = useState<any[]>([])
@@ -366,7 +368,7 @@ export default function Home() {
                 fontWeight: 400,
                 opacity: 0.7,
                 marginTop: 1,
-              }}>Served till 12pm</span>
+              }}>Served all day</span>
             </button>
             <button
               onClick={() => setMealType('lunch_dinner')}
@@ -390,7 +392,7 @@ export default function Home() {
                 fontWeight: 400,
                 opacity: 0.7,
                 marginTop: 1,
-              }}>All day</span>
+              }}>Starting at 10am</span>
             </button>
           </div>
         </div>
