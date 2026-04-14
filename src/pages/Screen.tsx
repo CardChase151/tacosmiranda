@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { supabase } from '../config/supabase'
 import { MenuCategory, MenuItem } from '../types'
 import { Plus, Minus, RotateCcw } from 'lucide-react'
@@ -194,8 +194,44 @@ function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelP
   const accentDim = light ? 'rgba(139,105,20,0.5)' : 'rgba(200,168,78,0.6)'
   const dotDim = light ? 'rgba(139,105,20,0.35)' : 'rgba(200,168,78,0.4)'
 
-  // More columns = less vertical overflow on TVs. 2 per side in split, 3 in fullscreen.
-  const cols = splitIntoColumns(cats, getItems, half ? 2 : 3)
+  // Pick column count based on total item density so menus always fit without
+  // forcing the team to manually tune fonts when they add items.
+  const totalItems = cats.reduce((sum, c) => sum + getItems(c.id).length, 0)
+  const maxCols = half ? 3 : 4
+  const minCols = half ? 2 : 2
+  // Target ~8 items per column before we split further.
+  const wantCols = Math.max(minCols, Math.min(maxCols, Math.ceil(totalItems / 8)))
+  const cols = splitIntoColumns(cats, getItems, wantCols)
+
+  // After render, measure the items-area. If natural content is taller than
+  // the container, scale it down so nothing gets cut off. Re-runs on menu edits.
+  const contentRef = useRef<HTMLDivElement>(null)
+  const scalerRef = useRef<HTMLDivElement>(null)
+  const [fitScale, setFitScale] = useState(1)
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const container = contentRef.current
+      const inner = scalerRef.current
+      if (!container || !inner) return
+      // Reset to 1 before measuring natural size.
+      inner.style.transform = 'scale(1)'
+      inner.style.width = '100%'
+      const available = container.clientHeight
+      const natural = inner.scrollHeight
+      if (natural <= available || available <= 0) {
+        setFitScale(1)
+        return
+      }
+      const s = Math.max(0.4, available / natural)
+      setFitScale(s)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    // Fonts/images may shift layout — re-measure shortly after mount.
+    const t = window.setTimeout(measure, 200)
+    return () => { window.removeEventListener('resize', measure); window.clearTimeout(t) }
+  }, [cats, cols.length, half])
 
   return (
     <div
@@ -227,20 +263,32 @@ function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelP
         <p style={{ fontSize: half ? 12 : 16, color: textPrimary, marginTop: 2, fontWeight: 600, opacity: 0.85 }}>{subtitle}</p>
       </div>
 
-      <div style={{ display: 'flex', gap: half ? 14 : 28, flex: 1, minHeight: 0 }}>
-        {cols.map((col, ci) => (
-          <div key={ci} style={{ flex: 1, minWidth: 0 }}>
-            {col.map(({ cat }) => (
-              <div key={cat.id} style={{ marginBottom: 14 }}>
-                <h3 style={{ fontSize: half ? 16 : 22, color: accent, textAlign: 'center', marginBottom: 4, fontWeight: 900 }}>{cat.name}</h3>
-                <div style={{ borderBottom: `2px solid ${accentDim}`, marginBottom: 8 }} />
-                {getItems(cat.id).map(item => (
-                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textPrimary} dotColor={dotDim} half={half} />
+      <div ref={contentRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div
+          ref={scalerRef}
+          style={{
+            transform: `scale(${fitScale})`,
+            transformOrigin: 'top center',
+            width: fitScale < 1 ? `${100 / fitScale}%` : '100%',
+            height: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', gap: half ? 14 : 28 }}>
+            {cols.map((col, ci) => (
+              <div key={ci} style={{ flex: 1, minWidth: 0 }}>
+                {col.map(({ cat }) => (
+                  <div key={cat.id} style={{ marginBottom: 14 }}>
+                    <h3 style={{ fontSize: half ? 16 : 22, color: accent, textAlign: 'center', marginBottom: 4, fontWeight: 900 }}>{cat.name}</h3>
+                    <div style={{ borderBottom: `2px solid ${accentDim}`, marginBottom: 8 }} />
+                    {getItems(cat.id).map(item => (
+                      <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textPrimary} dotColor={dotDim} half={half} />
+                    ))}
+                  </div>
                 ))}
               </div>
             ))}
           </div>
-        ))}
+        </div>
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 10, paddingTop: 10, borderTop: `1px solid ${accentDim}` }}>
