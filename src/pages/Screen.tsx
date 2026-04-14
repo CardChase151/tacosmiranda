@@ -187,15 +187,15 @@ interface PanelProps {
 }
 
 function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelProps) {
-  // High contrast — owner asked for bold, easy-to-read text. No washed-out greys.
+  // High contrast text + gold accents (border, dividers, prices).
   const bg = light ? '#FFFFFF' : '#000000'
+  const accent = light ? '#8B6914' : '#C8A84E'
   const textPrimary = light ? '#000000' : '#FFFFFF'
-  const textSecondary = light ? '#000000' : '#FFFFFF'  // same color, weight differentiates
-  const accentDim = light ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)'
-  const dotDim = light ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.3)'
+  const accentDim = light ? 'rgba(139,105,20,0.5)' : 'rgba(200,168,78,0.6)'
+  const dotDim = light ? 'rgba(139,105,20,0.35)' : 'rgba(200,168,78,0.4)'
 
-  // Half-width when in split, full when zoomed.
-  const cols = splitIntoColumns(cats, getItems, half ? 1 : 3)
+  // More columns = less vertical overflow on TVs. 2 per side in split, 3 in fullscreen.
+  const cols = splitIntoColumns(cats, getItems, half ? 2 : 3)
 
   return (
     <div
@@ -203,31 +203,39 @@ function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelP
       style={{
         width: half ? '50%' : '100%',
         height: '100%',
-        padding: half ? '40px 40px' : '50px 60px',
+        padding: half ? '28px 28px' : '36px 44px',
         background: bg,
+        border: `3px solid ${accent}`,
+        boxSizing: 'border-box',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         position: 'relative',
-        boxSizing: 'border-box',
         cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: half ? 36 : 52, color: textPrimary, margin: 0, fontWeight: 900 }}>Tacos Miranda</h1>
-        <h2 style={{ fontSize: half ? 24 : 36, color: textPrimary, fontWeight: 800, margin: '6px 0 0' }}>{title}</h2>
-        <p style={{ fontSize: half ? 14 : 18, color: textPrimary, marginTop: 4, fontWeight: 600, opacity: 0.85 }}>{subtitle}</p>
+      {/* Gold corner accents */}
+      <div style={{ position: 'absolute', top: 10, left: 10, width: 22, height: 22, borderTop: `3px solid ${accent}`, borderLeft: `3px solid ${accent}` }} />
+      <div style={{ position: 'absolute', top: 10, right: 10, width: 22, height: 22, borderTop: `3px solid ${accent}`, borderRight: `3px solid ${accent}` }} />
+      <div style={{ position: 'absolute', bottom: 10, left: 10, width: 22, height: 22, borderBottom: `3px solid ${accent}`, borderLeft: `3px solid ${accent}` }} />
+      <div style={{ position: 'absolute', bottom: 10, right: 10, width: 22, height: 22, borderBottom: `3px solid ${accent}`, borderRight: `3px solid ${accent}` }} />
+
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <h1 style={{ fontSize: half ? 30 : 46, color: textPrimary, margin: 0, fontWeight: 900 }}>Tacos Miranda</h1>
+        <h2 style={{ fontSize: half ? 20 : 30, color: accent, fontWeight: 800, margin: '4px 0 0' }}>{title}</h2>
+        <p style={{ fontSize: half ? 12 : 16, color: textPrimary, marginTop: 2, fontWeight: 600, opacity: 0.85 }}>{subtitle}</p>
       </div>
 
-      <div style={{ display: 'flex', gap: half ? 16 : 36, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', gap: half ? 14 : 28, flex: 1, minHeight: 0 }}>
         {cols.map((col, ci) => (
-          <div key={ci} style={{ flex: 1, overflow: 'hidden' }}>
+          <div key={ci} style={{ flex: 1, minWidth: 0 }}>
             {col.map(({ cat }) => (
-              <div key={cat.id} style={{ marginBottom: 18 }}>
-                <h3 style={{ fontSize: half ? 20 : 28, color: textPrimary, textAlign: 'center', marginBottom: 8, fontWeight: 900 }}>{cat.name}</h3>
-                <div style={{ borderBottom: `1px solid ${accentDim}`, marginBottom: 12 }} />
+              <div key={cat.id} style={{ marginBottom: 14 }}>
+                <h3 style={{ fontSize: half ? 16 : 22, color: accent, textAlign: 'center', marginBottom: 4, fontWeight: 900 }}>{cat.name}</h3>
+                <div style={{ borderBottom: `2px solid ${accentDim}`, marginBottom: 8 }} />
                 {getItems(cat.id).map(item => (
-                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={textPrimary} descColor={textSecondary} dotColor={dotDim} half={half} />
+                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textPrimary} dotColor={dotDim} half={half} />
                 ))}
               </div>
             ))}
@@ -235,8 +243,8 @@ function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelP
         ))}
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 14, paddingTop: 14, borderTop: `1px solid ${accentDim}` }}>
-        <p style={{ fontSize: half ? 11 : 14, color: textSecondary, margin: 0 }}>21582 Brookhurst St, Huntington Beach, CA 92646 &nbsp;|&nbsp; (657) 845-4011</p>
+      <div style={{ textAlign: 'center', marginTop: 10, paddingTop: 10, borderTop: `1px solid ${accentDim}` }}>
+        <p style={{ fontSize: half ? 11 : 14, color: textPrimary, fontWeight: 600, margin: 0, opacity: 0.85 }}>21582 Brookhurst St, Huntington Beach, CA 92646 &nbsp;|&nbsp; (657) 845-4011</p>
       </div>
     </div>
   )
@@ -244,14 +252,14 @@ function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelP
 
 function ItemRow({ item, nameColor, priceColor, descColor, dotColor, half }: { item: MenuItem; nameColor: string; priceColor: string; descColor: string; dotColor: string; half?: boolean }) {
   return (
-    <div style={{ marginBottom: half ? 8 : 14 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontSize: half ? 16 : 24, color: nameColor, fontWeight: 700 }}>{item.name}</span>
+    <div style={{ marginBottom: half ? 6 : 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: half ? 14 : 20, color: nameColor, fontWeight: 700 }}>{item.name}</span>
         <div style={{ flex: 1, borderBottom: `1px dotted ${dotColor}`, marginBottom: 4 }} />
-        <span style={{ fontSize: half ? 18 : 26, color: priceColor, fontWeight: 800 }}>${Number(item.price).toFixed(2)}</span>
+        <span style={{ fontSize: half ? 15 : 22, color: priceColor, fontWeight: 900 }}>${Number(item.price).toFixed(2)}</span>
       </div>
       {item.description && (
-        <p style={{ fontSize: half ? 12 : 16, color: descColor, marginTop: 3, lineHeight: 1.4, fontWeight: 500, opacity: 0.9 }}>{item.description}</p>
+        <p style={{ fontSize: half ? 11 : 14, color: descColor, marginTop: 1, lineHeight: 1.35, fontWeight: 500, opacity: 0.85 }}>{item.description}</p>
       )}
     </div>
   )
