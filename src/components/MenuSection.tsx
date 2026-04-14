@@ -97,7 +97,7 @@ export default function MenuSection({ category, items, isAdmin, onUpdate, light,
             style={{
               ...inputStyle,
               fontSize: 20,
-              fontFamily: 'var(--font-heading)',
+              fontFamily: 'var(--font-body)',
               textAlign: 'center',
               letterSpacing: 2,
               textTransform: 'uppercase',
@@ -112,7 +112,7 @@ export default function MenuSection({ category, items, isAdmin, onUpdate, light,
       ) : (
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
           <h2 style={{
-            fontFamily: 'var(--font-heading)',
+            fontFamily: 'var(--font-body)',
             fontSize: 28,
             color: light ? '#8B6914' : 'var(--gold)',
             textTransform: 'uppercase',

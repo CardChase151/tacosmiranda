@@ -12,7 +12,8 @@
   --gray: #9CA3AF;
   --gray-dark: #6B7280;
   --border: #222222;
-  --font-heading: 'Playfair Display', Georgia, serif;
+  /* Heading + body both Inter — owner wants clean, readable, no decorative serif. */
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
