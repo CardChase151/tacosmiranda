@@ -1,0 +1,649 @@
+import { useState, useMemo } from 'react'
+import {
+  MenuItem,
+  ModifierGroup,
+  Modifier,
+  MenuItemModifierGroup,
+  Ingredient,
+  MenuItemIngredient,
+  CartItemModifier,
+  CartItemIngredient,
+} from '../../types'
+import { X, Plus, Minus, Check } from 'lucide-react'
+
+interface Props {
+  item: MenuItem
+  modifierGroups: Array<{
+    group: ModifierGroup
+    modifiers: Modifier[]
+    link: MenuItemModifierGroup
+  }>
+  itemIngredients: Array<{
+    ingredient: Ingredient
+    link: MenuItemIngredient
+  }>
+  onAdd: (data: {
+    menu_item_id: string
+    item_name: string
+    unit_price: number
+    quantity: number
+    modifiers: CartItemModifier[]
+    ingredients: CartItemIngredient[]
+    special_instructions: string
+  }) => void
+  onClose: () => void
+}
+
+export default function ItemCustomizer({ item, modifierGroups, itemIngredients, onAdd, onClose }: Props) {
+  // Modifier selections: groupId -> selected modifier ids
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>(() => {
+    const initial: Record<string, string[]> = {}
+    modifierGroups.forEach(mg => {
+      if (mg.link.is_required && mg.modifiers.length > 0) {
+        initial[mg.link.modifier_group_id] = [mg.modifiers[0].id]
+      } else {
+        initial[mg.link.modifier_group_id] = []
+      }
+    })
+    return initial
+  })
+
+  // Ingredient removals: ingredientId -> true if removed
+  const [removedIngredients, setRemovedIngredients] = useState<Record<string, boolean>>({})
+
+  // Ingredient extras: ingredientId -> true if extra
+  const [extraIngredients, setExtraIngredients] = useState<Record<string, boolean>>({})
+
+  const [specialInstructions, setSpecialInstructions] = useState('')
+  const [quantity, setQuantity] = useState(1)
+
+  const requiredGroups = modifierGroups.filter(mg => mg.link.is_required)
+  const optionalGroups = modifierGroups.filter(mg => !mg.link.is_required)
+
+  // Group ingredients by category
+  const ingredientsByCategory = useMemo(() => {
+    const grouped: Record<string, Array<{ ingredient: Ingredient; link: MenuItemIngredient }>> = {}
+    itemIngredients.forEach(ii => {
+      const cat = ii.ingredient.category || 'Other'
+      if (!grouped[cat]) grouped[cat] = []
+      grouped[cat].push(ii)
+    })
+    // Sort within each category by sort_order
+    Object.values(grouped).forEach(arr => arr.sort((a, b) => a.link.sort_order - b.link.sort_order))
+    return grouped
+  }, [itemIngredients])
+
+  const handleRequiredModifier = (groupId: string, modifierId: string) => {
+    setSelectedModifiers(prev => ({ ...prev, [groupId]: [modifierId] }))
+  }
+
+  const handleOptionalModifier = (groupId: string, modifierId: string) => {
+    setSelectedModifiers(prev => {
+      const current = prev[groupId] || []
+      if (current.includes(modifierId)) {
+        return { ...prev, [groupId]: current.filter(id => id !== modifierId) }
+      }
+      return { ...prev, [groupId]: [...current, modifierId] }
+    })
+  }
+
+  const toggleRemoveIngredient = (ingredientId: string) => {
+    setRemovedIngredients(prev => {
+      const next = { ...prev }
+      if (next[ingredientId]) {
+        delete next[ingredientId]
+      } else {
+        next[ingredientId] = true
+        // If removing, also remove extra
+        setExtraIngredients(p => {
+          const n = { ...p }
+          delete n[ingredientId]
+          return n
+        })
+      }
+      return next
+    })
+  }
+
+  const toggleExtraIngredient = (ingredientId: string) => {
+    setExtraIngredients(prev => {
+      const next = { ...prev }
+      if (next[ingredientId]) {
+        delete next[ingredientId]
+      } else {
+        next[ingredientId] = true
+      }
+      return next
+    })
+  }
+
+  // Build selected modifiers list
+  const selectedMods: CartItemModifier[] = useMemo(() => {
+    const result: CartItemModifier[] = []
+    modifierGroups.forEach(mg => {
+      const selected = selectedModifiers[mg.link.modifier_group_id] || []
+      selected.forEach(modId => {
+        const mod = mg.modifiers.find(m => m.id === modId)
+        if (mod) {
+          result.push({
+            modifier_id: mod.id,
+            modifier_name: mod.name,
+            upcharge: mod.upcharge,
+          })
+        }
+      })
+    })
+    return result
+  }, [modifierGroups, selectedModifiers])
+
+  // Build ingredient changes list
+  const ingredientChanges: CartItemIngredient[] = useMemo(() => {
+    const result: CartItemIngredient[] = []
+    itemIngredients.forEach(ii => {
+      if (removedIngredients[ii.ingredient.id]) {
+        result.push({
+          ingredient_id: ii.ingredient.id,
+          ingredient_name: ii.ingredient.name,
+          action: 'remove',
+          extra_charge: 0,
+        })
+      } else if (extraIngredients[ii.ingredient.id]) {
+        result.push({
+          ingredient_id: ii.ingredient.id,
+          ingredient_name: ii.ingredient.name,
+          action: 'extra',
+          extra_charge: ii.link.extra_charge,
+        })
+      }
+    })
+    return result
+  }, [itemIngredients, removedIngredients, extraIngredients])
+
+  // Calculate total
+  const modifierUpcharges = selectedMods.reduce((sum, m) => sum + m.upcharge, 0)
+  const extraCharges = ingredientChanges
+    .filter(ic => ic.action === 'extra')
+    .reduce((sum, ic) => sum + ic.extra_charge, 0)
+  const lineTotal = (item.price + modifierUpcharges + extraCharges) * quantity
+
+  const handleAdd = () => {
+    onAdd({
+      menu_item_id: item.id,
+      item_name: item.name,
+      unit_price: item.price,
+      quantity,
+      modifiers: selectedMods,
+      ingredients: ingredientChanges,
+      special_instructions: specialInstructions.trim(),
+    })
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        animation: 'fadeIn 0.2s ease',
+      }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+        .item-customizer-modal::-webkit-scrollbar { display: none; }
+        .item-customizer-modal { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+      <div
+        className="item-customizer-modal"
+        style={{
+          background: '#1a1a1a',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 520,
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          position: 'relative',
+          margin: '0 16px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(200,168,78,0.15)',
+          animation: 'slideUp 0.3s ease',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          padding: '24px 24px 16px',
+          borderBottom: '1px solid #333',
+        }}>
+          <div>
+            <h2 style={{
+              fontSize: 22,
+              color: '#fff',
+              margin: 0,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+            }}>
+              {item.name}
+            </h2>
+            <p style={{ color: '#C8A84E', fontSize: 16, fontWeight: 600, margin: '4px 0 0' }}>
+              ${item.price.toFixed(2)}
+            </p>
+            {item.description && (
+              <p style={{ color: '#888', fontSize: 13, margin: '8px 0 0', lineHeight: 1.4 }}>
+                {item.description}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#888',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'flex',
+              flexShrink: 0,
+            }}
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        <div style={{ padding: '16px 24px' }}>
+          {/* Section 1: Required Choices */}
+          {requiredGroups.length > 0 && requiredGroups.map(mg => {
+            const groupSelected = selectedModifiers[mg.link.modifier_group_id] || []
+            return (
+              <div key={mg.link.id} style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, letterSpacing: 0.5 }}>
+                    {mg.group.display_name}
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#C8A84E',
+                    background: 'rgba(200,168,78,0.15)',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                  }}>
+                    Required
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {mg.modifiers.map(mod => {
+                    const isSelected = groupSelected.includes(mod.id)
+                    return (
+                      <button
+                        key={mod.id}
+                        onClick={() => handleRequiredModifier(mg.link.modifier_group_id, mod.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: isSelected ? 'rgba(200,168,78,0.1)' : 'transparent',
+                          border: isSelected ? '1px solid #C8A84E' : '1px solid #333',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          width: '100%',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            border: isSelected ? '2px solid #C8A84E' : '2px solid #888',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>
+                            {isSelected && (
+                              <div style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                background: '#C8A84E',
+                              }} />
+                            )}
+                          </div>
+                          <span style={{ color: '#fff', fontSize: 14 }}>{mod.name}</span>
+                        </div>
+                        {mod.upcharge > 0 && (
+                          <span style={{ color: '#C8A84E', fontSize: 13, fontWeight: 500 }}>
+                            +${mod.upcharge.toFixed(2)}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Section 2: Optional Add-ons */}
+          {optionalGroups.length > 0 && (
+            <>
+              {optionalGroups.map(mg => {
+                const groupSelected = selectedModifiers[mg.link.modifier_group_id] || []
+                return (
+                  <div key={mg.link.id} style={{ marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, letterSpacing: 0.5 }}>
+                        {mg.group.display_name}
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: '#888',
+                        background: 'rgba(255,255,255,0.05)',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        letterSpacing: 0.5,
+                        textTransform: 'uppercase',
+                      }}>
+                        Optional
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {mg.modifiers.map(mod => {
+                        const isSelected = groupSelected.includes(mod.id)
+                        return (
+                          <button
+                            key={mod.id}
+                            onClick={() => handleOptionalModifier(mg.link.modifier_group_id, mod.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 14px',
+                              background: isSelected ? 'rgba(200,168,78,0.1)' : 'transparent',
+                              border: isSelected ? '1px solid #C8A84E' : '1px solid #333',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              width: '100%',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 4,
+                                border: isSelected ? '2px solid #C8A84E' : '2px solid #888',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                background: isSelected ? '#C8A84E' : 'transparent',
+                              }}>
+                                {isSelected && <Check size={12} color="#000" strokeWidth={3} />}
+                              </div>
+                              <span style={{ color: '#fff', fontSize: 14 }}>{mod.name}</span>
+                            </div>
+                            {mod.upcharge > 0 && (
+                              <span style={{ color: '#C8A84E', fontSize: 13, fontWeight: 500 }}>
+                                +${mod.upcharge.toFixed(2)}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
+          {/* Section 3: Included Ingredients */}
+          {itemIngredients.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                color: '#C8A84E',
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                marginBottom: 14,
+                textTransform: 'uppercase',
+              }}>
+                Included Ingredients
+              </div>
+
+              {Object.entries(ingredientsByCategory).map(([category, items]) => (
+                <div key={category} style={{ marginBottom: 16 }}>
+                  <div style={{
+                    color: '#888',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 1,
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                  }}>
+                    {category}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {items.map(({ ingredient, link }) => {
+                      const isRemoved = !!removedIngredients[ingredient.id]
+                      const isExtra = !!extraIngredients[ingredient.id]
+
+                      return (
+                        <div
+                          key={ingredient.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            background: '#222',
+                            borderRadius: 8,
+                            opacity: isRemoved ? 0.4 : 1,
+                            transition: 'opacity 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {/* Include/remove checkbox */}
+                            {link.is_removable ? (
+                              <button
+                                onClick={() => toggleRemoveIngredient(ingredient.id)}
+                                style={{
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: 4,
+                                  border: isRemoved ? '2px solid #555' : '2px solid #C8A84E',
+                                  background: isRemoved ? 'transparent' : '#C8A84E',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                  padding: 0,
+                                }}
+                              >
+                                {!isRemoved && <Check size={12} color="#000" strokeWidth={3} />}
+                              </button>
+                            ) : (
+                              <div style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 4,
+                                border: '2px solid #C8A84E',
+                                background: '#C8A84E',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                opacity: 0.5,
+                              }}>
+                                <Check size={12} color="#000" strokeWidth={3} />
+                              </div>
+                            )}
+                            <span style={{
+                              color: '#fff',
+                              fontSize: 14,
+                              textDecoration: isRemoved ? 'line-through' : 'none',
+                            }}>
+                              {ingredient.name}
+                            </span>
+                          </div>
+
+                          {/* Extra toggle */}
+                          {link.can_add_extra && link.extra_charge > 0 && !isRemoved && (
+                            <button
+                              onClick={() => toggleExtraIngredient(ingredient.id)}
+                              style={{
+                                padding: '3px 10px',
+                                borderRadius: 12,
+                                border: isExtra ? '1px solid #C8A84E' : '1px solid #555',
+                                background: isExtra ? 'rgba(200,168,78,0.2)' : 'transparent',
+                                color: isExtra ? '#C8A84E' : '#888',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Extra +${link.extra_charge.toFixed(2)}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Special Instructions */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={{
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              display: 'block',
+              marginBottom: 8,
+            }}>
+              Special Instructions
+            </label>
+            <textarea
+              value={specialInstructions}
+              onChange={e => setSpecialInstructions(e.target.value)}
+              placeholder="Any special requests..."
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#111',
+                border: '1px solid #333',
+                borderRadius: 8,
+                color: '#fff',
+                fontSize: 14,
+                padding: '10px 14px',
+                outline: 'none',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {/* Quantity Selector */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 20,
+            marginBottom: 24,
+          }}>
+            <button
+              onClick={() => setQuantity(q => Math.max(1, q - 1))}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: '#111',
+                border: '1px solid #333',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              <Minus size={18} />
+            </button>
+            <span style={{
+              color: '#fff',
+              fontSize: 20,
+              fontWeight: 700,
+              minWidth: 32,
+              textAlign: 'center',
+            }}>
+              {quantity}
+            </span>
+            <button
+              onClick={() => setQuantity(q => q + 1)}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: '#111',
+                border: '1px solid #333',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              <Plus size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Add to Order Button */}
+        <div style={{ padding: '0 24px 24px' }}>
+          <button
+            onClick={handleAdd}
+            style={{
+              width: '100%',
+              padding: '14px 24px',
+              background: '#C8A84E',
+              border: 'none',
+              borderRadius: 12,
+              color: '#000',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              letterSpacing: 0.5,
+            }}
+          >
+            Add to Order - ${lineTotal.toFixed(2)}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

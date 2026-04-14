@@ -1,0 +1,287 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from '../config/supabase'
+import { MenuCategory, MenuItem } from '../types'
+import { Plus, Minus, RotateCcw } from 'lucide-react'
+
+// In-store TV menu. Default = split-screen Breakfast + Lunch.
+// Tap a side -> that meal expands fullscreen. Tap again -> split.
+// Designed at 1920x1080; scales to fit any viewport. Manual zoom persists per device.
+
+const DESIGN_W = 1920
+const DESIGN_H = 1080
+const ZOOM_KEY = 'screen-zoom'
+
+type Mode = 'both' | 'breakfast' | 'lunch_dinner'
+
+export default function Screen() {
+  const [categories, setCategories] = useState<MenuCategory[]>([])
+  const [items, setItems] = useState<MenuItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<Mode>('both')
+  const [zoom, setZoom] = useState(1)
+  const [autoScale, setAutoScale] = useState(1)
+  const [showControls, setShowControls] = useState(false)
+  const hideTimer = useRef<number | null>(null)
+
+  const fetchMenu = useCallback(async () => {
+    const [catRes, itemRes] = await Promise.all([
+      supabase.from('menu_categories').select('*').order('sort_order'),
+      supabase.from('menu_items').select('*').order('sort_order'),
+    ])
+    if (catRes.data) setCategories(catRes.data)
+    if (itemRes.data) setItems(itemRes.data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchMenu() }, [fetchMenu])
+
+  // Restore zoom + listen for resize for auto-fit.
+  useEffect(() => {
+    const saved = localStorage.getItem(ZOOM_KEY)
+    if (saved) setZoom(parseFloat(saved))
+    const recalc = () => {
+      const sw = window.innerWidth / DESIGN_W
+      const sh = window.innerHeight / DESIGN_H
+      setAutoScale(Math.min(sw, sh))
+    }
+    recalc()
+    window.addEventListener('resize', recalc)
+    return () => window.removeEventListener('resize', recalc)
+  }, [])
+
+  // Show controls on any mouse move; hide after 3s of no activity.
+  useEffect(() => {
+    const onMove = () => {
+      setShowControls(true)
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+      hideTimer.current = window.setTimeout(() => setShowControls(false), 3000)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('touchstart', onMove)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchstart', onMove)
+      if (hideTimer.current) window.clearTimeout(hideTimer.current)
+    }
+  }, [])
+
+  const setZoomPersist = (z: number) => {
+    const clamped = Math.max(0.5, Math.min(2, z))
+    setZoom(clamped)
+    localStorage.setItem(ZOOM_KEY, String(clamped))
+  }
+
+  const breakfastCats = categories.filter(c => c.meal_type === 'breakfast')
+  const lunchCats = categories.filter(c => c.meal_type === 'lunch_dinner')
+  const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
+
+  if (loading) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', background: '#0C0C0C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C8A84E', fontFamily: "'Playfair Display', serif", fontSize: 32 }}>
+        Loading menu...
+      </div>
+    )
+  }
+
+  const finalScale = autoScale * zoom
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', background: '#0C0C0C', overflow: 'hidden', position: 'relative', cursor: 'pointer' }}>
+      {/* Scaled design canvas */}
+      <div style={{
+        position: 'absolute',
+        left: '50%', top: '50%',
+        width: DESIGN_W, height: DESIGN_H,
+        transform: `translate(-50%, -50%) scale(${finalScale})`,
+        transformOrigin: 'center center',
+      }}>
+        {mode === 'both' && (
+          <div style={{ width: '100%', height: '100%', display: 'flex' }}>
+            <Panel
+              title="Breakfast"
+              subtitle="Served All Day"
+              cats={breakfastCats}
+              getItems={getItems}
+              light
+              onClick={() => setMode('breakfast')}
+              half
+            />
+            <Panel
+              title="Lunch & Dinner"
+              subtitle="Served Starting at 10am"
+              cats={lunchCats}
+              getItems={getItems}
+              onClick={() => setMode('lunch_dinner')}
+              half
+            />
+          </div>
+        )}
+        {mode === 'breakfast' && (
+          <Panel
+            title="Breakfast"
+            subtitle="Served All Day"
+            cats={breakfastCats}
+            getItems={getItems}
+            light
+            onClick={() => setMode('both')}
+          />
+        )}
+        {mode === 'lunch_dinner' && (
+          <Panel
+            title="Lunch & Dinner"
+            subtitle="Served Starting at 10am"
+            cats={lunchCats}
+            getItems={getItems}
+            onClick={() => setMode('both')}
+          />
+        )}
+      </div>
+
+      {/* Floating zoom controls */}
+      <div style={{
+        position: 'fixed', bottom: 20, right: 20,
+        display: 'flex', gap: 8,
+        opacity: showControls ? 1 : 0,
+        transition: 'opacity 0.3s ease',
+        pointerEvents: showControls ? 'auto' : 'none',
+        zIndex: 100,
+      }}>
+        <ZoomBtn onClick={(e) => { e.stopPropagation(); setZoomPersist(zoom - 0.05) }}><Minus size={20} /></ZoomBtn>
+        <ZoomBtn onClick={(e) => { e.stopPropagation(); setZoomPersist(1) }}><RotateCcw size={20} /></ZoomBtn>
+        <ZoomBtn onClick={(e) => { e.stopPropagation(); setZoomPersist(zoom + 0.05) }}><Plus size={20} /></ZoomBtn>
+        <div style={{
+          background: 'rgba(0,0,0,0.7)', color: '#C8A84E', border: '1px solid #C8A84E',
+          padding: '8px 14px', borderRadius: 8, fontSize: 13, fontFamily: "'Inter', sans-serif",
+          display: 'flex', alignItems: 'center', minWidth: 60, justifyContent: 'center',
+        }}>
+          {Math.round(zoom * 100)}%
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ZoomBtn({ onClick, children }: { onClick: (e: React.MouseEvent) => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'rgba(0,0,0,0.7)', color: '#C8A84E', border: '1px solid #C8A84E',
+        width: 40, height: 40, borderRadius: 8, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+interface PanelProps {
+  title: string
+  subtitle: string
+  cats: MenuCategory[]
+  getItems: (catId: string) => MenuItem[]
+  light?: boolean
+  onClick: () => void
+  half?: boolean
+}
+
+function Panel({ title, subtitle, cats, getItems, light, onClick, half }: PanelProps) {
+  const bg = light ? '#FAF8F3' : '#0C0C0C'
+  const accent = light ? '#8B6914' : '#C8A84E'
+  const textPrimary = light ? '#1a1a1a' : '#FFFFFF'
+  const textSecondary = light ? '#666' : '#9CA3AF'
+  const accentDim = light ? 'rgba(139,105,20,0.2)' : 'rgba(200,168,78,0.3)'
+  const dotDim = light ? 'rgba(139,105,20,0.15)' : 'rgba(200,168,78,0.2)'
+
+  // Half-width when in split, full when zoomed.
+  const cols = splitIntoColumns(cats, getItems, half ? 1 : 3)
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: half ? '50%' : '100%',
+        height: '100%',
+        padding: half ? '40px 40px' : '50px 60px',
+        background: bg,
+        border: `2px solid ${accent}`,
+        fontFamily: "'Playfair Display', Georgia, serif",
+        position: 'relative',
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div style={{ position: 'absolute', top: 12, left: 12, width: 26, height: 26, borderTop: `2px solid ${accent}`, borderLeft: `2px solid ${accent}` }} />
+      <div style={{ position: 'absolute', top: 12, right: 12, width: 26, height: 26, borderTop: `2px solid ${accent}`, borderRight: `2px solid ${accent}` }} />
+      <div style={{ position: 'absolute', bottom: 12, left: 12, width: 26, height: 26, borderBottom: `2px solid ${accent}`, borderLeft: `2px solid ${accent}` }} />
+      <div style={{ position: 'absolute', bottom: 12, right: 12, width: 26, height: 26, borderBottom: `2px solid ${accent}`, borderRight: `2px solid ${accent}` }} />
+
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <h1 style={{ fontSize: half ? 38 : 56, color: accent, letterSpacing: 10, margin: 0, textTransform: 'uppercase', fontWeight: 700 }}>Tacos Miranda</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, margin: '10px 0' }}>
+          <div style={{ width: 160, height: 1, background: accent }} />
+          <div style={{ width: 8, height: 8, background: accent, transform: 'rotate(45deg)' }} />
+          <div style={{ width: 160, height: 1, background: accent }} />
+        </div>
+        <h2 style={{ fontSize: half ? 28 : 40, color: textPrimary, letterSpacing: 8, fontWeight: 400, margin: 0, textTransform: 'uppercase' }}>{title}</h2>
+        <p style={{ fontSize: half ? 14 : 18, color: textSecondary, marginTop: 6, fontStyle: 'italic', letterSpacing: 3, fontFamily: "'Inter', sans-serif" }}>{subtitle}</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: half ? 16 : 36, flex: 1, minHeight: 0 }}>
+        {cols.map((col, ci) => (
+          <div key={ci} style={{ flex: 1, overflow: 'hidden' }}>
+            {col.map(({ cat }) => (
+              <div key={cat.id} style={{ marginBottom: 18 }}>
+                <h3 style={{ fontSize: half ? 16 : 22, color: accent, textTransform: 'uppercase', letterSpacing: 4, textAlign: 'center', marginBottom: 6 }}>{cat.name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, height: 1, background: accentDim }} />
+                  <div style={{ width: 4, height: 4, background: accent, transform: 'rotate(45deg)', flexShrink: 0 }} />
+                  <div style={{ flex: 1, height: 1, background: accentDim }} />
+                </div>
+                {getItems(cat.id).map(item => (
+                  <ItemRow key={item.id} item={item} nameColor={textPrimary} priceColor={accent} descColor={textSecondary} dotColor={dotDim} half={half} />
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 14, paddingTop: 14, borderTop: `1px solid ${accentDim}` }}>
+        <p style={{ fontSize: half ? 11 : 14, color: textSecondary, letterSpacing: 3, fontFamily: "'Inter', sans-serif", margin: 0 }}>21582 Brookhurst St, Huntington Beach, CA 92646 &nbsp;|&nbsp; (657) 845-4011</p>
+      </div>
+    </div>
+  )
+}
+
+function ItemRow({ item, nameColor, priceColor, descColor, dotColor, half }: { item: MenuItem; nameColor: string; priceColor: string; descColor: string; dotColor: string; half?: boolean }) {
+  return (
+    <div style={{ marginBottom: half ? 8 : 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: half ? 14 : 20, color: nameColor, fontWeight: 600 }}>{item.name}</span>
+        <div style={{ flex: 1, borderBottom: `1px dotted ${dotColor}`, marginBottom: 4 }} />
+        <span style={{ fontSize: half ? 14 : 20, color: priceColor, fontWeight: 700 }}>${Number(item.price).toFixed(2)}</span>
+      </div>
+      {item.description && (
+        <p style={{ fontSize: half ? 11 : 14, color: descColor, marginTop: 2, lineHeight: 1.4, fontFamily: "'Inter', sans-serif" }}>{item.description}</p>
+      )}
+    </div>
+  )
+}
+
+// Round-robin distribute categories across N columns by item count.
+function splitIntoColumns(cats: MenuCategory[], getItems: (id: string) => MenuItem[], n: number) {
+  const cols: { cat: MenuCategory }[][] = Array.from({ length: n }, () => [])
+  const heights = new Array(n).fill(0)
+  cats.forEach(cat => {
+    const rows = 1 + getItems(cat.id).length
+    let minIdx = 0
+    for (let i = 1; i < n; i++) if (heights[i] < heights[minIdx]) minIdx = i
+    cols[minIdx].push({ cat })
+    heights[minIdx] += rows
+  })
+  return cols
+}
