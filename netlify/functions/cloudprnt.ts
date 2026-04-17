@@ -13,7 +13,14 @@ const handler: Handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type',
   }
 
-  console.log(`[CloudPRNT] ${event.httpMethod} ${event.path} from ${event.headers['user-agent'] || 'unknown'} | query=${JSON.stringify(event.queryStringParameters || {})}`)
+  console.log(`[CloudPRNT] ${event.httpMethod} ${event.path}`)
+  console.log(`[CloudPRNT]   UA: ${event.headers['user-agent'] || 'none'}`)
+  console.log(`[CloudPRNT]   Accept: ${event.headers['accept'] || 'none'}`)
+  console.log(`[CloudPRNT]   Content-Type: ${event.headers['content-type'] || 'none'}`)
+  console.log(`[CloudPRNT]   Query: ${JSON.stringify(event.queryStringParameters || {})}`)
+  if (event.body) {
+    console.log(`[CloudPRNT]   Body: ${event.body.substring(0, 500)}`)
+  }
 
   // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
