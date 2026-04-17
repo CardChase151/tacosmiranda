@@ -13,6 +13,8 @@ const handler: Handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type',
   }
 
+  console.log(`[CloudPRNT] ${event.httpMethod} ${event.path} from ${event.headers['user-agent'] || 'unknown'} | query=${JSON.stringify(event.queryStringParameters || {})}`)
+
   // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' }
