@@ -10,7 +10,7 @@ const handler: Handler = async () => {
     body: JSON.stringify({
       title: 'star_cloudprnt_server_setting',
       version: '1.0.0',
-      serverSupportProtocol: ['HTTP'],
+      serverSupportProtocol: ['HTTP', 'HTTPS'],
     }),
   }
 }
