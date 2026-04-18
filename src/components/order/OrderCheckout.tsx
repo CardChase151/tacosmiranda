@@ -107,6 +107,52 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
     setSubmitting(true)
 
     try {
+      // If Stripe is wired and accepting charges, route through Stripe Checkout.
+      // The edge function creates the order (status='awaiting_payment') and returns a Stripe Checkout URL.
+      const { data: stripeSettings } = await supabase
+        .from('stripe_settings')
+        .select('charges_enabled')
+        .eq('id', 'main')
+        .maybeSingle()
+
+      if (stripeSettings?.charges_enabled) {
+        const { data: checkoutData, error: checkoutErr } = await supabase.functions.invoke('stripe-checkout', {
+          body: {
+            items: cart.items.map(item => ({
+              menu_item_id: item.menu_item_id,
+              item_name: item.item_name,
+              quantity: item.quantity,
+              modifiers: item.modifiers.map(m => ({
+                modifier_id: m.modifier_id,
+                modifier_name: m.modifier_name,
+                price_delta: m.upcharge || 0,
+              })),
+              ingredients: item.ingredients.map((ing: CartItemIngredient) => ({
+                ingredient_id: ing.ingredient_id,
+                ingredient_name: ing.ingredient_name,
+                action: ing.action,
+                extra_charge: ing.extra_charge || 0,
+              })),
+              special_instructions: item.special_instructions,
+            })),
+            customer_name: customerName.trim(),
+            customer_phone: customerPhone.trim(),
+            customer_email: customerEmail.trim().toLowerCase(),
+            special_instructions: orderInstructions.trim(),
+            success_url: `${window.location.origin}/my-orders?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${window.location.origin}/order?cancelled=true`,
+          },
+        })
+        if (checkoutErr) throw checkoutErr
+        if (checkoutData?.url) {
+          cart.clearCart()
+          window.location.href = checkoutData.url
+          return
+        }
+        throw new Error('Stripe checkout did not return a redirect URL')
+      }
+
+      // Fallback: Stripe not configured yet, insert order directly (pre-payment-launch behavior)
       const number = generateOrderNumber()
 
       const { data: order, error: orderError } = await supabase

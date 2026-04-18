@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   isAdmin: boolean
+  hasBilling: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
 }
@@ -26,14 +27,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [hasBilling, setHasBilling] = useState(false)
 
   const checkAdmin = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('is_admin')
+      .select('is_admin, billing')
       .eq('id', userId)
       .single()
     setIsAdmin(data?.is_admin || false)
+    setHasBilling(data?.billing || false)
   }
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkAdmin(session.user.id)
       } else {
         setIsAdmin(false)
+        setHasBilling(false)
       }
       setLoading(false)
     })
@@ -65,9 +69,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     setIsAdmin(false)
+    setHasBilling(false)
     await supabase.auth.signOut()
   }
 
-  const value = { user, session, loading, isAdmin, signIn, signOut }
+  const value = { user, session, loading, isAdmin, hasBilling, signIn, signOut }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

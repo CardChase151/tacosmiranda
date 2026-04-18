@@ -12,6 +12,8 @@ import PrintMenu from './pages/PrintMenu'
 import Screen from './pages/Screen'
 import OrderOnline from './pages/OrderOnline'
 import MyOrders from './pages/MyOrders'
+import AdminBilling from './pages/AdminBilling'
+import AdminDashboard from './pages/AdminDashboard'
 import './App.css'
 
 function AppContent() {
@@ -33,6 +35,8 @@ function AppContent() {
           <Route path="/screen" element={<Screen />} />
           <Route path="/order" element={<OrderOnline />} />
           <Route path="/my-orders" element={<MyOrders />} />
+          <Route path="/admin/billing" element={<AdminBilling />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </main>
       {!chromeless && !isOrderPage && <Footer />}

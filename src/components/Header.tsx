@@ -1,4 +1,4 @@
-import { Lock, LogOut, Printer } from 'lucide-react'
+import { Lock, LogOut, Printer, CreditCard, BarChart3 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 interface HeaderProps {
@@ -6,7 +6,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onAdminClick }: HeaderProps) {
-  const { isAdmin, user, signOut } = useAuth()
+  const { isAdmin, hasBilling, user, signOut } = useAuth()
 
   const navStyle: React.CSSProperties = {
     color: 'var(--gray)',
@@ -86,7 +86,40 @@ export default function Header({ onAdminClick }: HeaderProps) {
             >
               My Orders
             </a>
+            <a
+              href="/admin/dashboard"
+              style={{
+                ...navStyle,
+                color: '#a78bfa',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#c4b5fd'}
+              onMouseLeave={e => e.currentTarget.style.color = '#a78bfa'}
+            >
+              <BarChart3 size={14} /> Dashboard
+            </a>
           </>
+        )}
+        {hasBilling && (
+          <a
+            href="/admin/billing"
+            style={{
+              ...navStyle,
+              color: '#34d399',
+              textDecoration: 'none',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
+            onMouseLeave={e => e.currentTarget.style.color = '#34d399'}
+          >
+            <CreditCard size={14} /> Billing
+          </a>
         )}
 
         {isAdmin ? (
