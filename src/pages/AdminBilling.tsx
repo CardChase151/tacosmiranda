@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { CreditCard, CheckCircle2, AlertTriangle, ExternalLink, Loader2 } from 'lucide-react'
+import {
+  CreditCard,
+  CheckCircle2,
+  AlertTriangle,
+  ExternalLink,
+  Loader2,
+  Banknote,
+  Shield,
+  TrendingUp,
+  ArrowUpRight,
+} from 'lucide-react'
 
 interface Status {
   connected: boolean
@@ -16,7 +26,8 @@ export default function AdminBilling() {
   const [status, setStatus] = useState<Status | null>(null)
   const [working, setWorking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [testMode, setTestMode] = useState(true)
+  const [testMode, setTestMode] = useState(false)
+  const [showDev, setShowDev] = useState(false)
 
   const fetchStatus = async () => {
     setWorking('status')
@@ -87,150 +98,264 @@ export default function AdminBilling() {
   }
 
   if (loading) {
-    return <div style={wrap}><Loader2 size={24} className="spin" /> Loading…</div>
+    return (
+      <div style={pageWrap}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--gray)' }}>
+          <Loader2 size={18} className="spin" /> Loading…
+        </div>
+      </div>
+    )
   }
   if (!user || !hasBilling) {
     return (
-      <div style={wrap}>
-        <h1 style={{ color: 'var(--gold)' }}>Not authorized</h1>
-        <p style={{ color: 'var(--gray)' }}>This page is only for the owner.</p>
+      <div style={pageWrap}>
+        <div style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center' }}>
+          <Shield size={40} style={{ color: 'var(--gold)', opacity: 0.5, marginBottom: 16 }} />
+          <h1 style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', margin: 0 }}>Owner access only</h1>
+          <p style={{ color: 'var(--gray)', marginTop: 12 }}>This page is only available to the restaurant owner.</p>
+        </div>
       </div>
     )
   }
 
   const ready = status?.charges_enabled && status?.payouts_enabled
+  const inProgress = status?.connected && !status?.onboarding_complete
 
   return (
-    <div style={wrap}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <CreditCard size={28} style={{ color: '#34d399' }} />
-          <h1 style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', margin: 0 }}>Billing</h1>
+    <div style={pageWrap}>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        {/* Title */}
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: 'var(--gold)', opacity: 0.5, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+            <CreditCard size={14} /> Owner Billing
+          </div>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 40, margin: 0, color: 'var(--white)', fontWeight: 300, letterSpacing: -0.5 }}>
+            Payments & Payouts
+          </h1>
+          <p style={{ color: 'var(--gray)', marginTop: 12, maxWidth: 560, lineHeight: 1.6 }}>
+            Connect your Stripe account to accept online orders. Once connected, you can update banking info and review payouts any time.
+          </p>
         </div>
-        <p style={{ color: 'var(--gray)', marginBottom: 32 }}>
-          Connect and manage your Stripe account. Tacos Miranda uses Stripe to accept online payments. You can update your banking info and see payouts from the Stripe dashboard at any time.
-        </p>
 
         {testMode && (
-          <div style={banner('#eab308')}>
-            <AlertTriangle size={16} /> Test Mode — no real charges are processed. Toggle off when you are ready to go live.
+          <div style={bannerStyle}>
+            <AlertTriangle size={16} /> <strong>Test Mode</strong> — payments are simulated. Toggle off when ready to accept real charges.
           </div>
         )}
 
         {error && (
-          <div style={banner('#ef4444')}>
+          <div style={{ ...bannerStyle, background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' }}>
             <AlertTriangle size={16} /> {error}
           </div>
         )}
 
-        <div style={card}>
-          <h2 style={h2}>Stripe Connection</h2>
+        {/* Status hero */}
+        <div style={heroCard}>
           {!status ? (
-            <p style={{ color: 'var(--gray)' }}>
-              <Loader2 size={14} className="spin" /> Checking status…
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--gray)', padding: '20px 0' }}>
+              <Loader2 size={16} className="spin" /> Checking connection…
+            </div>
           ) : !status.connected ? (
             <>
-              <p style={{ color: 'var(--gray)' }}>No Stripe account connected yet. Click below to set one up.</p>
+              <StatusPill color="var(--gray-dark)" label="Not Connected" />
+              <h2 style={h2}>Set up online payments</h2>
+              <p style={paraStyle}>
+                You'll be redirected to Stripe to enter your business details, banking info, and identity verification. Takes a few minutes. You can come back and update any of it later.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, margin: '24px 0' }}>
+                <MiniFact icon={<Shield size={16} />} label="Secure" hint="Powered by Stripe" />
+                <MiniFact icon={<Banknote size={16} />} label="Direct deposits" hint="Straight to your bank" />
+                <MiniFact icon={<TrendingUp size={16} />} label="1% platform fee" hint="Plus Stripe's ~2.9% + $0.30" />
+              </div>
               <button onClick={startOnboarding} disabled={working === 'onboard'} style={btnPrimary}>
-                {working === 'onboard' ? <><Loader2 size={16} className="spin" /> Opening Stripe…</> : 'Connect Stripe Account'}
+                {working === 'onboard' ? <><Loader2 size={16} className="spin" /> Opening Stripe…</> : <>Connect Stripe Account <ArrowUpRight size={16} /></>}
               </button>
             </>
-          ) : !status.onboarding_complete ? (
+          ) : inProgress ? (
             <>
-              <StatusRow label="Onboarding" value="Incomplete" bad />
-              <p style={{ color: 'var(--gray)', margin: '12px 0' }}>
-                Finish setting up your Stripe account (banking, identity, etc.) before you can accept online orders.
+              <StatusPill color="#eab308" label="Onboarding Incomplete" />
+              <h2 style={h2}>Finish your Stripe setup</h2>
+              <p style={paraStyle}>
+                Stripe still needs a few more details (banking, identity, or business info) before we can accept orders.
               </p>
               <button onClick={startOnboarding} disabled={working === 'onboard'} style={btnPrimary}>
-                {working === 'onboard' ? <><Loader2 size={16} className="spin" /> Opening Stripe…</> : 'Finish Onboarding'}
+                {working === 'onboard' ? <><Loader2 size={16} className="spin" /> Opening Stripe…</> : <>Finish Onboarding <ArrowUpRight size={16} /></>}
               </button>
             </>
           ) : (
             <>
-              {status.business_name && <StatusRow label="Business" value={status.business_name} />}
-              <StatusRow label="Onboarding" value={status.onboarding_complete ? 'Complete' : 'Incomplete'} bad={!status.onboarding_complete} />
-              <StatusRow label="Accepting charges" value={status.charges_enabled ? 'Yes' : 'No'} bad={!status.charges_enabled} />
-              <StatusRow label="Payouts enabled" value={status.payouts_enabled ? 'Yes' : 'No'} bad={!status.payouts_enabled} />
+              <StatusPill color="#10b981" label={ready ? 'Ready to Accept Orders' : 'Partially Active'} />
+              <h2 style={h2}>{status.business_name || 'Tacos Miranda'}</h2>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, marginTop: 20 }}>
+                <StatTile label="Accepting charges" ok={!!status.charges_enabled} />
+                <StatTile label="Payouts enabled" ok={!!status.payouts_enabled} />
+              </div>
+
               {ready && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#34d399', margin: '16px 0' }}>
-                  <CheckCircle2 size={18} /> Ready to accept online orders.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#10b981', padding: '16px 0', borderTop: '1px solid var(--border)', marginTop: 20 }}>
+                  <CheckCircle2 size={18} />
+                  <span style={{ fontSize: 14 }}>Online orders will deposit directly to your bank.</span>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+
+              <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
                 <button onClick={openDashboard} disabled={working === 'login'} style={btnPrimary}>
                   {working === 'login' ? <><Loader2 size={16} className="spin" /> Opening…</> : <><ExternalLink size={16} /> Manage Bank & Payouts</>}
                 </button>
                 <button onClick={fetchStatus} disabled={working === 'status'} style={btnGhost}>
-                  {working === 'status' ? <><Loader2 size={16} className="spin" /> Refreshing…</> : 'Refresh Status'}
+                  {working === 'status' ? <><Loader2 size={16} className="spin" /> Refreshing…</> : 'Refresh'}
                 </button>
               </div>
             </>
           )}
         </div>
 
-        <div style={card}>
-          <h2 style={h2}>Settings</h2>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={testMode} onChange={toggleTestMode} />
-            <span style={{ color: 'var(--gray)' }}>Test mode (no real payments)</span>
-          </label>
+        {/* Help */}
+        <div style={helpCard}>
+          <strong style={{ color: 'var(--gold)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Need help?</strong>
+          <p style={{ color: 'var(--gray)', fontSize: 14, marginTop: 8, marginBottom: 0 }}>
+            Stripe handles all payment processing and banking. For questions about a specific payout, log in to your Stripe dashboard using the button above.
+          </p>
         </div>
+
+        {/* Dev toggle — subtle, hidden by default */}
+        <button onClick={() => setShowDev(!showDev)} style={devToggle}>
+          {showDev ? 'Hide' : 'Show'} developer options
+        </button>
+        {showDev && (
+          <div style={helpCard}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', color: 'var(--gray)', fontSize: 14 }}>
+              <input type="checkbox" checked={testMode} onChange={toggleTestMode} />
+              <span>Test mode (simulated payments, no real money)</span>
+            </label>
+          </div>
+        )}
       </div>
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }
 
-function StatusRow({ label, value, bad }: { label: string; value: string; bad?: boolean }) {
+function StatusPill({ color, label }: { color: string; label: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-      <span style={{ color: 'var(--gray)' }}>{label}</span>
-      <span style={{ color: bad ? '#ef4444' : 'var(--gold)', fontWeight: 600 }}>{value}</span>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${color}22`, border: `1px solid ${color}66`, color, padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}` }} />
+      {label}
     </div>
   )
 }
 
-const wrap: React.CSSProperties = { padding: 32, minHeight: '80vh', background: 'var(--bg)' }
-const card: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.03)',
+function StatTile({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div style={{ padding: '14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {ok ? <CheckCircle2 size={18} style={{ color: '#10b981' }} /> : <AlertTriangle size={18} style={{ color: '#ef4444' }} />}
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--gray)', textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
+        <div style={{ color: ok ? '#10b981' : '#ef4444', fontWeight: 600 }}>{ok ? 'Yes' : 'No'}</div>
+      </div>
+    </div>
+  )
+}
+
+function MiniFact({ icon, label, hint }: { icon: React.ReactNode; label: string; hint: string }) {
+  return (
+    <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'rgba(255,255,255,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>
+        {icon} {label}
+      </div>
+      <div style={{ color: 'var(--gray)', fontSize: 11, marginTop: 4 }}>{hint}</div>
+    </div>
+  )
+}
+
+const pageWrap: React.CSSProperties = {
+  padding: '48px 24px 80px',
+  minHeight: '80vh',
+  background: 'var(--dark)',
+}
+
+const heroCard: React.CSSProperties = {
+  background: 'linear-gradient(180deg, rgba(200,168,78,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+  border: '1px solid var(--border)',
+  borderRadius: 16,
+  padding: 32,
+  marginBottom: 24,
+  boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+}
+
+const helpCard: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.02)',
   border: '1px solid var(--border)',
   borderRadius: 12,
-  padding: 24,
-  marginBottom: 24,
+  padding: 20,
+  marginBottom: 16,
 }
-const h2: React.CSSProperties = { color: 'var(--gold)', fontFamily: 'var(--font-heading)', fontSize: 20, margin: '0 0 16px' }
+
+const h2: React.CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontSize: 24,
+  color: 'var(--white)',
+  margin: '16px 0 8px',
+  fontWeight: 500,
+}
+
+const paraStyle: React.CSSProperties = {
+  color: 'var(--gray)',
+  fontSize: 14,
+  lineHeight: 1.6,
+  margin: 0,
+}
+
 const btnPrimary: React.CSSProperties = {
-  padding: '12px 20px',
-  background: '#34d399',
-  color: '#000',
+  padding: '14px 24px',
+  background: 'var(--gold)',
+  color: 'var(--black)',
   border: 'none',
-  borderRadius: 8,
+  borderRadius: 10,
   fontWeight: 700,
+  fontSize: 14,
+  letterSpacing: 0.3,
   cursor: 'pointer',
   display: 'inline-flex',
   alignItems: 'center',
   gap: 8,
+  transition: 'background 0.2s',
 }
+
 const btnGhost: React.CSSProperties = {
-  padding: '12px 20px',
+  padding: '14px 20px',
   background: 'transparent',
   color: 'var(--gold)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 10,
+  fontSize: 14,
   cursor: 'pointer',
   display: 'inline-flex',
   alignItems: 'center',
   gap: 8,
 }
-const banner = (color: string): React.CSSProperties => ({
+
+const bannerStyle: React.CSSProperties = {
   padding: '12px 16px',
-  background: `${color}22`,
-  border: `1px solid ${color}66`,
-  color,
-  borderRadius: 8,
+  background: 'rgba(234,179,8,0.1)',
+  border: '1px solid rgba(234,179,8,0.3)',
+  color: '#eab308',
+  borderRadius: 10,
   marginBottom: 24,
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
-})
+  gap: 10,
+  fontSize: 14,
+}
+
+const devToggle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: 'var(--gray-dark)',
+  fontSize: 12,
+  cursor: 'pointer',
+  padding: 8,
+  textDecoration: 'underline',
+  opacity: 0.5,
+}
