@@ -687,6 +687,17 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
               >
                 {submitting ? 'Placing Order...' : `Place Order - $${cart.total.toFixed(2)}`}
               </button>
+
+              <p style={{
+                color: 'var(--gray)',
+                fontSize: 12,
+                textAlign: 'center',
+                marginTop: 12,
+                lineHeight: 1.5,
+              }}>
+                Once your order is confirmed, cooking starts right away.<br/>
+                <strong style={{ color: 'var(--gold)' }}>No online cancellations or refunds.</strong> For issues, call us at <a href="tel:6578454011" style={{ color: 'var(--gold)', textDecoration: 'none' }}>(657) 845-4011</a>.
+              </p>
             </div>
           </>
         ) : null}

@@ -183,6 +183,20 @@ export default function MyOrders() {
         </h1>
       </div>
 
+      <div style={{
+        background: 'rgba(200,168,78,0.06)',
+        border: '1px solid rgba(200,168,78,0.2)',
+        borderRadius: 10,
+        padding: '12px 16px',
+        marginBottom: 24,
+        textAlign: 'center',
+      }}>
+        <p style={{ color: 'var(--gray)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+          Need to change or cancel an order? Online self-service isn't available since cooking starts immediately.
+          Please call us at <a href="tel:6578454011" style={{ color: 'var(--gold)', fontWeight: 600, textDecoration: 'none' }}>(657) 845-4011</a>.
+        </p>
+      </div>
+
       {loading ? (
         <p style={{ color: 'var(--gray)', fontSize: 14, textAlign: 'center' }}>Loading orders...</p>
       ) : orders.length === 0 ? (

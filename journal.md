@@ -28,7 +28,7 @@ Customer orders on tacosmiranda.com → pays via Stripe (1% platform fee) → re
 - **Post-checkout thank-you page** — after payment Stripe redirects to `/my-orders?session_id=...`. Need to confirm MyOrders page resolves session → order and shows a clear "Order #TM-12345 is being prepared — est 20 min" confirmation screen.
 - **Admin/staff order notifications** — decide: printer receipt alone (current) vs. also email/text Charlie when a new paid order hits.
 - **Kitchen/staff workflow** — verify `MyOrders` or add "Today's orders" view with "Mark completed" button for staff.
-- **Refund sync** — Stripe dashboard handles refunds, but the webhook doesn't currently flip our DB order status on refund. Handler for `charge.refunded` / `payment_intent.refunded`.
+- ~~**Refund sync**~~ — **DECIDED (2026-04-18): no self-service refunds or cancellations.** Cooking starts immediately when the ticket prints. Customer-facing policy notes added on checkout + MyOrders pages telling customers to call the restaurant directly for any issues. If Charlie ever issues a manual refund through the Stripe dashboard, the order record stays as "confirmed" in our DB (he can note it in Stripe). We can revisit webhook-driven refund sync later if it matters, but the usual restaurant pattern is Stripe-only.
 - **Kill switch** — currently anyone visiting tacosmiranda.com/order can place an order. Once Charlie completes onboarding, this is LIVE. If we want a quiet soft launch, add a per-order-type toggle or password-gate the page.
 
 ---
