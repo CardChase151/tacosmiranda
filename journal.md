@@ -1,13 +1,43 @@
-# Tacos Miranda - Printer Journal
+# Tacos Miranda - Online Ordering Journal
 
-Tracking every step of getting online orders → receipt printer working.
+Tracking every step of getting online orders → paid → printed → fulfilled.
 
 ## Goal
-Customer places order on tacosmiranda.com → receipt prints automatically at the restaurant.
+Customer orders on tacosmiranda.com → pays via Stripe (1% platform fee) → receipt auto-prints at the restaurant → Charlie sees a simple sales dashboard.
 
 ---
 
-## Current Hardware (confirmed 2026-04-17)
+## Where we are (as of 2026-04-17)
+
+### ✅ DONE
+- **Printer wired end-to-end**: Star TSP143IV on 192.168.1.78 polls Supabase edge function every 5s, prints orders as plain text at 80mm/48-char width. Call-out name emphasized top + bottom. 7 printer fn versions deployed — v6 is current production.
+- **Stripe Connect infrastructure**: 3 edge functions deployed (stripe-connect, stripe-checkout, stripe-webhook), wired for Direct Charges with 1% application_fee_amount to App Catalyst platform.
+- **DB schema**: `profiles.billing` column + Stripe columns on orders (`stripe_payment_intent_id`, `stripe_checkout_session_id`, `stripe_fee_amount`, `application_fee_amount`, `net_amount`, `paid_at`).
+- **Owner account**: `charlie@tacosmiranda.com` / `Miranda2026!` with `is_admin=true, billing=true`.
+- **UI**: polished `/admin/billing` page (Charlie only) + `/admin/dashboard` (all admins). Green "Billing" button in top nav only shows for Charlie. Purple "Dashboard" button for all admins.
+- **Supabase secrets**: `STRIPE_SECRET_KEY` (live sk_live) + `STRIPE_WEBHOOK_SECRET` (live whsec) both stored via CLI.
+- **Live webhook**: `we_1TNPiWQ9kGXQ4OluiT4McRU4` created in Stripe, listens to Connected-account events.
+- **OrderCheckout flow**: auto-detects if Stripe is ready (`stripe_settings.charges_enabled=true`) and routes through Checkout; otherwise falls back to direct insert so nothing breaks before Charlie connects.
+
+### 🟨 IN PROGRESS — Weekend rollout
+- Charlie signs in this weekend, goes through Stripe Connect onboarding (banking, SSN/EIN, business info).
+- Chase + Charlie run 1 real test order with a real card to confirm the full pipeline.
+
+### ❌ NOT STARTED — before full launch confidence
+- **Branded customer confirmation email** — existing `order-email.ts` fires on old direct-insert path but NOT on the Stripe flow. Customers currently get only Stripe's generic receipt. We should trigger `order-email.ts` from the `stripe-webhook` on `checkout.session.completed` so customers get a "Tacos Miranda — your order is being prepared" email.
+- **Post-checkout thank-you page** — after payment Stripe redirects to `/my-orders?session_id=...`. Need to confirm MyOrders page resolves session → order and shows a clear "Order #TM-12345 is being prepared — est 20 min" confirmation screen.
+- **Admin/staff order notifications** — decide: printer receipt alone (current) vs. also email/text Charlie when a new paid order hits.
+- **Kitchen/staff workflow** — verify `MyOrders` or add "Today's orders" view with "Mark completed" button for staff.
+- **Refund sync** — Stripe dashboard handles refunds, but the webhook doesn't currently flip our DB order status on refund. Handler for `charge.refunded` / `payment_intent.refunded`.
+- **Kill switch** — currently anyone visiting tacosmiranda.com/order can place an order. Once Charlie completes onboarding, this is LIVE. If we want a quiet soft launch, add a per-order-type toggle or password-gate the page.
+
+---
+
+## Hardware/Printer details
+
+---
+
+## Confirmed 2026-04-17
 
 ### Printer
 - **Model**: Star TSP143IV-UE (USB + Ethernet, TSP100IV family)
