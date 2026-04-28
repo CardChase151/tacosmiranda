@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { supabase } from '../config/supabase'
 import {
   MenuCategory,
@@ -118,6 +119,9 @@ function OrderContent() {
 
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 600, margin: '0 auto' }}>
+      <Helmet>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 8 }}>
         <Link
