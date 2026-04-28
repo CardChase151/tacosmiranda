@@ -138,6 +138,7 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
             customer_name: customerName.trim(),
             customer_phone: customerPhone.trim(),
             customer_email: customerEmail.trim().toLowerCase(),
+            user_id: user?.id || null,
             special_instructions: orderInstructions.trim(),
             success_url: `${window.location.origin}/my-orders?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${window.location.origin}/order?cancelled=true`,

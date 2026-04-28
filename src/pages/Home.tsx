@@ -71,10 +71,12 @@ export default function Home() {
   }, [isBreakfast])
 
   const filteredCategories = categories.filter(c => c.meal_type === mealType)
+  // Hide [TEST] menu items from non-admins on the public homepage.
+  const visibleItems = isAdmin ? items : items.filter(i => !i.is_test)
 
   const searchLower = searchQuery.toLowerCase().trim()
   const searchedItems = searchLower
-    ? items.filter(i => i.name.toLowerCase().includes(searchLower) || i.description?.toLowerCase().includes(searchLower))
+    ? visibleItems.filter(i => i.name.toLowerCase().includes(searchLower) || i.description?.toLowerCase().includes(searchLower))
     : []
   const searchedCategoryIds = Array.from(new Set(searchedItems.map(i => i.category_id)))
 
@@ -86,7 +88,7 @@ export default function Home() {
     if (searchLower) {
       return searchedItems.filter(i => i.category_id === catId)
     }
-    return items.filter(i => i.category_id === catId)
+    return visibleItems.filter(i => i.category_id === catId)
   }
 
   return (

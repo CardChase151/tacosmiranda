@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import SEO from './components/SEO'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -15,6 +15,19 @@ import MyOrders from './pages/MyOrders'
 import AdminBilling from './pages/AdminBilling'
 import AdminDashboard from './pages/AdminDashboard'
 import './App.css'
+
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { loading, isAdmin } = useAuth()
+  if (loading) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--gold)', fontSize: 14, letterSpacing: 2, textTransform: 'uppercase' }}>Loading...</div>
+      </div>
+    )
+  }
+  if (!isAdmin) return <Navigate to="/" replace />
+  return <>{children}</>
+}
 
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
@@ -33,7 +46,7 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/admin/print-menu" element={<PrintMenu />} />
           <Route path="/screen" element={<Screen />} />
-          <Route path="/order" element={<OrderOnline />} />
+          <Route path="/order" element={<AdminOnly><OrderOnline /></AdminOnly>} />
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/admin/billing" element={<AdminBilling />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />

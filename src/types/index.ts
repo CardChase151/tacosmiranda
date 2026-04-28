@@ -12,6 +12,7 @@ export interface MenuItem {
   price: number
   description: string
   sort_order: number
+  is_test?: boolean
 }
 
 export interface EmailSubscriber {
