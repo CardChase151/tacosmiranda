@@ -46,8 +46,20 @@ button {
   font-family: var(--font-body);
 }
 
-input {
+input,
+textarea,
+select {
   font-family: var(--font-body);
+}
+
+/* iOS Safari auto-zooms when an input has font-size < 16px. Force 16px on all
+   form fields to keep the viewport stable when the keyboard opens. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 @keyframes fadeInUp {
