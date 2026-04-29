@@ -299,26 +299,52 @@ export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit }: Cart
               </div>
             </div>
 
-            <button
-              onClick={onCheckout}
-              style={{
-                width: '100%',
-                padding: '14px 24px',
-                background: 'var(--gold)',
-                border: 'none',
-                borderRadius: 12,
-                color: 'var(--black)',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-                letterSpacing: 0.5,
-                transition: 'opacity 0.2s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9' }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-            >
-              Continue to Checkout
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={onClose}
+                style={{
+                  width: '100%',
+                  padding: '12px 20px',
+                  background: 'transparent',
+                  border: '1px solid rgba(200,168,78,0.4)',
+                  borderRadius: 12,
+                  color: 'var(--gold)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  letterSpacing: 0.5,
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,168,78,0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <ShoppingCart size={14} /> Add more items
+              </button>
+              <button
+                onClick={onCheckout}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  background: 'var(--gold)',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: 'var(--black)',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  letterSpacing: 0.5,
+                  transition: 'opacity 0.2s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '0.9' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                Continue to Checkout
+              </button>
+            </div>
           </div>
         )}
       </div>
