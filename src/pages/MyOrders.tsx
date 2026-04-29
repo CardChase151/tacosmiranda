@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
-import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp, Check } from 'lucide-react'
 
 interface OrderItemMod {
   modifier_name: string
@@ -43,16 +43,28 @@ interface OrderRecord {
 export default function MyOrders() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sessionId = searchParams.get('session_id')
   const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [menuPrices, setMenuPrices] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
 
+  // Clear cart only when Stripe redirects here with a session_id (payment confirmed).
+  useEffect(() => {
+    if (sessionId) {
+      try { localStorage.removeItem('tm_cart') } catch { /* ignore */ }
+    }
+  }, [sessionId])
+
   const fetchOrders = useCallback(async () => {
     if (!user) return
+    // Hide zombie orders (cancelled checkouts the customer can't act on).
     const { data: orderRows } = await supabase
       .from('orders')
       .select('*')
       .eq('user_id', user.id)
+      .not('status', 'in', '(awaiting_payment,failed)')
       .order('created_at', { ascending: false })
 
     if (!orderRows || orderRows.length === 0) {
@@ -63,19 +75,25 @@ export default function MyOrders() {
 
     const orderIds = orderRows.map(o => o.id)
 
-    const [itemsRes, modsRes, ingsRes] = await Promise.all([
-      supabase.from('order_items').select('*').in('order_id', orderIds),
-      supabase.from('order_item_modifiers').select('*').in('order_item_id',
-        (await supabase.from('order_items').select('id').in('order_id', orderIds)).data?.map(i => i.id) || []
-      ),
-      supabase.from('order_item_ingredients').select('*').in('order_item_id',
-        (await supabase.from('order_items').select('id').in('order_id', orderIds)).data?.map(i => i.id) || []
-      ),
+    const itemsRes = await supabase.from('order_items').select('*').in('order_id', orderIds)
+    const allItems = itemsRes.data || []
+    const allItemIds = allItems.map(i => i.id)
+
+    const [modsRes, ingsRes, menuRes] = await Promise.all([
+      allItemIds.length
+        ? supabase.from('order_item_modifiers').select('*').in('order_item_id', allItemIds)
+        : Promise.resolve({ data: [] as any[] }),
+      allItemIds.length
+        ? supabase.from('order_item_ingredients').select('*').in('order_item_id', allItemIds)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('menu_items').select('id, price'),
     ])
 
-    const allItems = itemsRes.data || []
     const allMods = modsRes.data || []
     const allIngs = ingsRes.data || []
+    const priceMap: Record<string, number> = {}
+    for (const m of menuRes.data || []) priceMap[m.id] = Number(m.price)
+    setMenuPrices(priceMap)
 
     const enriched: OrderRecord[] = orderRows.map(order => {
       const items = allItems
@@ -102,24 +120,37 @@ export default function MyOrders() {
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
   const buildCartFromOrder = (order: OrderRecord) => {
-    return order.items.map(item => ({
-      menu_item_id: item.menu_item_id,
-      item_name: item.item_name,
-      unit_price: item.unit_price,
-      quantity: item.quantity,
-      modifiers: item.modifiers.map(m => ({
-        modifier_id: '',
-        modifier_name: m.modifier_name,
-        upcharge: m.upcharge,
-      })),
-      ingredients: item.ingredients.map(i => ({
-        ingredient_id: '',
-        ingredient_name: i.ingredient_name,
-        action: i.action,
-        extra_charge: i.extra_charge,
-      })),
-      special_instructions: item.special_instructions || '',
-    }))
+    return order.items.map(item => {
+      // Saved unit_price is the bundled per-unit price (base + modifiers + extras).
+      // The cart re-applies modifier/extra upcharges on top, so we must hand it the
+      // BASE menu price. Fall back to a derived base if the menu item is gone.
+      const modSum = item.modifiers.reduce((s, m) => s + Number(m.upcharge || 0), 0)
+      const extraSum = item.ingredients
+        .filter(i => i.action === 'extra')
+        .reduce((s, i) => s + Number(i.extra_charge || 0), 0)
+      const basePrice =
+        menuPrices[item.menu_item_id] ??
+        Math.max(0, Number(item.unit_price) - modSum - extraSum)
+
+      return {
+        menu_item_id: item.menu_item_id,
+        item_name: item.item_name,
+        unit_price: basePrice,
+        quantity: item.quantity,
+        modifiers: item.modifiers.map(m => ({
+          modifier_id: '',
+          modifier_name: m.modifier_name,
+          upcharge: Number(m.upcharge || 0),
+        })),
+        ingredients: item.ingredients.map(i => ({
+          ingredient_id: '',
+          ingredient_name: i.ingredient_name,
+          action: i.action,
+          extra_charge: Number(i.extra_charge || 0),
+        })),
+        special_instructions: item.special_instructions || '',
+      }
+    })
   }
 
   const handleAddToCart = (order: OrderRecord) => {
@@ -182,6 +213,30 @@ export default function MyOrders() {
           My Orders
         </h1>
       </div>
+
+      {sessionId && (
+        <div style={{
+          background: 'rgba(74,222,128,0.08)',
+          border: '1px solid rgba(74,222,128,0.3)',
+          borderRadius: 10,
+          padding: '14px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', background: '#4ade80',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <Check size={16} color="#0a0a0a" />
+          </div>
+          <div>
+            <p style={{ color: 'var(--white)', fontSize: 14, margin: 0, fontWeight: 600 }}>Payment received</p>
+            <p style={{ color: 'var(--gray)', fontSize: 12, margin: '2px 0 0' }}>Your order is in. Confirmation email is on the way.</p>
+          </div>
+        </div>
+      )}
 
       <div style={{
         background: 'rgba(200,168,78,0.06)',

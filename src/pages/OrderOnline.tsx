@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { supabase } from '../config/supabase'
 import {
@@ -21,6 +21,13 @@ import { ShoppingCart, Undo2, Redo2, ArrowLeft } from 'lucide-react'
 
 function OrderContent() {
   const cart = useCart()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const wasCancelled = searchParams.get('cancelled') === 'true'
+  const dismissCancelled = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('cancelled')
+    setSearchParams(next, { replace: true })
+  }
 
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
@@ -122,6 +129,40 @@ function OrderContent() {
       <Helmet>
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
+
+      {wasCancelled && (
+        <div style={{
+          background: 'rgba(251,191,36,0.08)',
+          border: '1px solid rgba(251,191,36,0.3)',
+          borderRadius: 10,
+          padding: '12px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <div>
+            <p style={{ color: '#fbbf24', fontSize: 13, fontWeight: 600, margin: 0, letterSpacing: 0.3 }}>
+              Payment cancelled
+            </p>
+            <p style={{ color: 'var(--gray)', fontSize: 12, margin: '2px 0 0', lineHeight: 1.5 }}>
+              Your cart is still here. Tap Place Order again whenever you're ready.
+            </p>
+          </div>
+          <button
+            onClick={dismissCancelled}
+            style={{
+              background: 'none', border: 'none', color: 'var(--gray)',
+              cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1, flexShrink: 0,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 8 }}>
         <Link

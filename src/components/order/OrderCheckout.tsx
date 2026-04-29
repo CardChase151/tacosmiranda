@@ -146,7 +146,8 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
         })
         if (checkoutErr) throw checkoutErr
         if (checkoutData?.url) {
-          cart.clearCart()
+          // Cart is cleared on /my-orders after Stripe confirms payment, not here.
+          // If the customer cancels, their cart is preserved so they can retry.
           window.location.href = checkoutData.url
           return
         }
