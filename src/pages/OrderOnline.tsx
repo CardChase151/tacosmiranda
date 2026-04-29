@@ -10,6 +10,7 @@ import {
   MenuItemModifierGroup,
   Ingredient,
   MenuItemIngredient,
+  CartItem,
   CartItemModifier,
   CartItemIngredient,
 } from '../types'
@@ -17,7 +18,7 @@ import { useCart, CartProvider } from '../context/CartContext'
 import ItemCustomizer from '../components/order/ItemCustomizer'
 import CartDrawer from '../components/order/CartDrawer'
 import OrderCheckout from '../components/order/OrderCheckout'
-import { ShoppingCart, Undo2, Redo2, ArrowLeft } from 'lucide-react'
+import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus } from 'lucide-react'
 
 function OrderContent() {
   const cart = useCart()
@@ -47,9 +48,23 @@ function OrderContent() {
   })
 
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [reorderLoaded, setReorderLoaded] = useState(false)
+
+  const handleEditCartItem = (cartItem: CartItem) => {
+    const menu = items.find(i => i.id === cartItem.menu_item_id)
+    if (!menu) return
+    setEditingCartItem(cartItem)
+    setSelectedItem(menu)
+    setCartOpen(false)
+  }
+
+  const closeCustomizer = () => {
+    setSelectedItem(null)
+    setEditingCartItem(null)
+  }
 
   // Pick up reorder items from MyOrders page
   useEffect(() => {
@@ -282,13 +297,23 @@ function OrderContent() {
                     textAlign: 'left',
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(200,168,78,0.05)'
+                    e.currentTarget.style.background = 'rgba(200,168,78,0.08)'
+                    const plus = e.currentTarget.querySelector('[data-plus]') as HTMLElement | null
+                    if (plus) {
+                      plus.style.background = 'var(--gold)'
+                      plus.style.color = 'var(--black)'
+                    }
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.background = 'var(--dark-card)'
+                    const plus = e.currentTarget.querySelector('[data-plus]') as HTMLElement | null
+                    if (plus) {
+                      plus.style.background = 'transparent'
+                      plus.style.color = 'var(--gold)'
+                    }
                   }}
                 >
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ color: 'var(--white)', fontSize: 15, fontWeight: 500 }}>
                       {item.name}
                     </span>
@@ -298,15 +323,34 @@ function OrderContent() {
                       </p>
                     )}
                   </div>
-                  <span style={{
-                    color: 'var(--gold)',
-                    fontSize: 15,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    marginLeft: 16,
-                  }}>
-                    ${item.price.toFixed(2)}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, marginLeft: 16 }}>
+                    <span style={{
+                      color: 'var(--gold)',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      ${item.price.toFixed(2)}
+                    </span>
+                    <span
+                      data-plus
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        border: '1.5px solid var(--gold)',
+                        background: 'transparent',
+                        color: 'var(--gold)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                      }}
+                      aria-hidden="true"
+                    >
+                      <Plus size={16} strokeWidth={2.5} />
+                    </span>
+                  </div>
                 </button>
               ))}
             </div>
@@ -320,11 +364,16 @@ function OrderContent() {
           item={selectedItem}
           modifierGroups={getItemModifierGroups(selectedItem.id)}
           itemIngredients={getItemIngredients(selectedItem.id)}
+          editingCartItem={editingCartItem || undefined}
           onAdd={(cartItem) => {
             cart.addItem(cartItem)
-            setSelectedItem(null)
+            closeCustomizer()
           }}
-          onClose={() => setSelectedItem(null)}
+          onUpdate={(cartId, updates) => {
+            cart.updateItem(cartId, updates)
+            closeCustomizer()
+          }}
+          onClose={closeCustomizer}
         />
       )}
 
@@ -342,6 +391,7 @@ function OrderContent() {
             setCartOpen(false)
             setCheckoutOpen(true)
           }}
+          onEdit={handleEditCartItem}
         />
       )}
 

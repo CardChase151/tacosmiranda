@@ -1,14 +1,16 @@
 import { useCart } from '../../context/CartContext'
-import { X, Trash2, ShoppingCart } from 'lucide-react'
+import { X, Trash2, Pencil, ShoppingCart } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { CartItem } from '../../types'
 
 interface CartDrawerProps {
   isOpen: boolean
   onClose: () => void
   onCheckout: () => void
+  onEdit?: (item: CartItem) => void
 }
 
-export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
+export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit }: CartDrawerProps) {
   const cart = useCart()
   const [searchParams] = useSearchParams()
   const wasCancelled = searchParams.get('cancelled') === 'true'
@@ -162,10 +164,31 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
-                        <span style={{ color: 'var(--white)', fontSize: 14, fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                        <span style={{ color: 'var(--white)', fontSize: 14, fontWeight: 600, marginRight: 4 }}>
                           ${item.line_total.toFixed(2)}
                         </span>
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(item)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--gold)',
+                              cursor: 'pointer',
+                              padding: 6,
+                              display: 'flex',
+                              borderRadius: 6,
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,168,78,0.12)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            title="Edit item"
+                            aria-label="Edit item"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        )}
                         <button
                           onClick={() => cart.removeItem(item.cart_id)}
                           style={{
@@ -173,12 +196,17 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                             border: 'none',
                             color: '#cc4444',
                             cursor: 'pointer',
-                            padding: 4,
+                            padding: 6,
                             display: 'flex',
+                            borderRadius: 6,
+                            transition: 'background 0.15s',
                           }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(204,68,68,0.12)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                           title="Remove item"
+                          aria-label="Remove item"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   MenuItem,
   ModifierGroup,
@@ -6,6 +6,7 @@ import {
   MenuItemModifierGroup,
   Ingredient,
   MenuItemIngredient,
+  CartItem,
   CartItemModifier,
   CartItemIngredient,
 } from '../../types'
@@ -22,6 +23,8 @@ interface Props {
     ingredient: Ingredient
     link: MenuItemIngredient
   }>
+  // If provided, the modal opens in EDIT mode pre-filled from this cart entry.
+  editingCartItem?: CartItem
   onAdd: (data: {
     menu_item_id: string
     item_name: string
@@ -31,31 +34,67 @@ interface Props {
     ingredients: CartItemIngredient[]
     special_instructions: string
   }) => void
+  // Called when saving in edit mode.
+  onUpdate?: (cartId: string, data: Partial<CartItem>) => void
   onClose: () => void
 }
 
-export default function ItemCustomizer({ item, modifierGroups, itemIngredients, onAdd, onClose }: Props) {
-  // Modifier selections: groupId -> selected modifier ids
-  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>(() => {
+export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onClose }: Props) {
+  const isEditing = !!editingCartItem
+
+  // Build initial modifier selections (groupId -> [modifierIds]) from cart item if editing.
+  const buildInitialModifiers = useCallback(() => {
     const initial: Record<string, string[]> = {}
     modifierGroups.forEach(mg => {
-      if (mg.link.is_required && mg.modifiers.length > 0) {
+      const modIdsInGroup = new Set(mg.modifiers.map(m => m.id))
+      if (editingCartItem) {
+        const selected = editingCartItem.modifiers
+          .map(m => m.modifier_id)
+          .filter(id => modIdsInGroup.has(id))
+        initial[mg.link.modifier_group_id] = selected
+      } else if (mg.link.is_required && mg.modifiers.length > 0) {
         initial[mg.link.modifier_group_id] = [mg.modifiers[0].id]
       } else {
         initial[mg.link.modifier_group_id] = []
       }
     })
     return initial
-  })
+  }, [modifierGroups, editingCartItem])
 
-  // Ingredient removals: ingredientId -> true if removed
-  const [removedIngredients, setRemovedIngredients] = useState<Record<string, boolean>>({})
+  const buildInitialRemoved = useCallback(() => {
+    const r: Record<string, boolean> = {}
+    if (editingCartItem) {
+      editingCartItem.ingredients.filter(i => i.action === 'remove').forEach(i => {
+        if (i.ingredient_id) r[i.ingredient_id] = true
+      })
+    }
+    return r
+  }, [editingCartItem])
 
-  // Ingredient extras: ingredientId -> true if extra
-  const [extraIngredients, setExtraIngredients] = useState<Record<string, boolean>>({})
+  const buildInitialExtras = useCallback(() => {
+    const e: Record<string, boolean> = {}
+    if (editingCartItem) {
+      editingCartItem.ingredients.filter(i => i.action === 'extra').forEach(i => {
+        if (i.ingredient_id) e[i.ingredient_id] = true
+      })
+    }
+    return e
+  }, [editingCartItem])
 
-  const [specialInstructions, setSpecialInstructions] = useState('')
-  const [quantity, setQuantity] = useState(1)
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>(buildInitialModifiers)
+  const [removedIngredients, setRemovedIngredients] = useState<Record<string, boolean>>(buildInitialRemoved)
+  const [extraIngredients, setExtraIngredients] = useState<Record<string, boolean>>(buildInitialExtras)
+  const [specialInstructions, setSpecialInstructions] = useState(editingCartItem?.special_instructions || '')
+  const [quantity, setQuantity] = useState(editingCartItem?.quantity || 1)
+  const [justAdded, setJustAdded] = useState(false)
+
+  const resetForAnother = () => {
+    setSelectedModifiers(buildInitialModifiers())
+    setRemovedIngredients({})
+    setExtraIngredients({})
+    setSpecialInstructions('')
+    setQuantity(1)
+  }
 
   const requiredGroups = modifierGroups.filter(mg => mg.link.is_required)
   const optionalGroups = modifierGroups.filter(mg => !mg.link.is_required)
@@ -166,16 +205,29 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
     .reduce((sum, ic) => sum + ic.extra_charge, 0)
   const lineTotal = (item.price + modifierUpcharges + extraCharges) * quantity
 
+  const buildPayload = () => ({
+    menu_item_id: item.id,
+    item_name: item.name,
+    unit_price: item.price,
+    quantity,
+    modifiers: selectedMods,
+    ingredients: ingredientChanges,
+    special_instructions: specialInstructions.trim(),
+  })
+
   const handleAdd = () => {
-    onAdd({
-      menu_item_id: item.id,
-      item_name: item.name,
-      unit_price: item.price,
-      quantity,
-      modifiers: selectedMods,
-      ingredients: ingredientChanges,
-      special_instructions: specialInstructions.trim(),
-    })
+    if (isEditing && editingCartItem && onUpdate) {
+      onUpdate(editingCartItem.cart_id, buildPayload())
+    } else {
+      onAdd(buildPayload())
+    }
+  }
+
+  const handleAddAnother = () => {
+    onAdd(buildPayload())
+    resetForAnother()
+    setJustAdded(true)
+    window.setTimeout(() => setJustAdded(false), 1600)
   }
 
   return (
@@ -619,8 +671,40 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
           </div>
         </div>
 
-        {/* Add to Order Button */}
-        <div style={{ padding: '0 24px 24px' }}>
+        {/* Action Buttons */}
+        <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {!isEditing && (
+            <button
+              onClick={handleAddAnother}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                background: 'transparent',
+                border: '1px solid rgba(200,168,78,0.4)',
+                borderRadius: 12,
+                color: justAdded ? '#4ade80' : '#C8A84E',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                letterSpacing: 0.5,
+                transition: 'all 0.2s',
+              }}
+            >
+              {justAdded ? (
+                <>
+                  <Check size={16} /> Added · keep customizing
+                </>
+              ) : (
+                <>
+                  <Plus size={16} /> Add and customize another
+                </>
+              )}
+            </button>
+          )}
           <button
             onClick={handleAdd}
             style={{
@@ -640,7 +724,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
               letterSpacing: 0.5,
             }}
           >
-            Add to Order - ${lineTotal.toFixed(2)}
+            {isEditing ? `Update Order - $${lineTotal.toFixed(2)}` : `Add to Order - $${lineTotal.toFixed(2)}`}
           </button>
         </div>
       </div>
