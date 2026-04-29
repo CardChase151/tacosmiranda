@@ -390,6 +390,7 @@ function OrderContent() {
             setCheckoutOpen(true)
           }}
           onEdit={handleEditCartItem}
+          hasActiveCustomizer={!!selectedItem}
         />
       )}
 

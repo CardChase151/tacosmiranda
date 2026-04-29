@@ -8,9 +8,11 @@ interface CartDrawerProps {
   onClose: () => void
   onCheckout: () => void
   onEdit?: (item: CartItem) => void
+  // True if the customizer is mounted underneath — closing the drawer returns to it.
+  hasActiveCustomizer?: boolean
 }
 
-export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit }: CartDrawerProps) {
+export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit, hasActiveCustomizer }: CartDrawerProps) {
   const cart = useCart()
   const [searchParams] = useSearchParams()
   const wasCancelled = searchParams.get('cancelled') === 'true'
@@ -322,7 +324,8 @@ export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit }: Cart
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,168,78,0.08)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
               >
-                <ShoppingCart size={14} /> Add more items
+                <ShoppingCart size={14} />
+                {hasActiveCustomizer ? 'Back to Menu' : 'Add more to the cart'}
               </button>
               <button
                 onClick={onCheckout}
