@@ -18,7 +18,7 @@ import { useCart, CartProvider } from '../context/CartContext'
 import ItemCustomizer from '../components/order/ItemCustomizer'
 import CartDrawer from '../components/order/CartDrawer'
 import OrderCheckout from '../components/order/OrderCheckout'
-import OrderUpsell, { shouldShowUpsell } from '../components/order/OrderUpsell'
+import OrderUpsell, { computeUpsellMissing } from '../components/order/OrderUpsell'
 import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus } from 'lucide-react'
 
 function OrderContent() {
@@ -52,6 +52,9 @@ function OrderContent() {
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [upsellOpen, setUpsellOpen] = useState(false)
+  // Captured once when the upsell opens — list does NOT re-compute as the user
+  // adds drinks/sides during this session. Cleared when the upsell closes.
+  const [upsellSnapshot, setUpsellSnapshot] = useState<MenuCategory[]>([])
   // True when the customizer was launched from the upsell flow — so closing it returns to upsell.
   const [returnToUpsell, setReturnToUpsell] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -70,14 +73,8 @@ function OrderContent() {
     setEditingCartItem(null)
     if (returnToUpsell) {
       setReturnToUpsell(false)
-      // Came back from a customizer that was launched out of the upsell flow.
-      // If the upsell still has something to suggest, re-open it. Otherwise jump
-      // to checkout — don't strand the user on the menu after they added a drink.
-      if (shouldShowUpsell(categories, items, cart.items, mealType)) {
-        setUpsellOpen(true)
-      } else {
-        setCheckoutOpen(true)
-      }
+      // Reopen the upsell with the same frozen suggestion list.
+      setUpsellOpen(true)
     }
   }
 
@@ -404,17 +401,17 @@ function OrderContent() {
       {/* Pre-checkout Upsell */}
       <OrderUpsell
         open={upsellOpen && !checkoutOpen && !selectedItem}
-        categories={categories}
+        missingCategories={upsellSnapshot}
         items={items}
-        cartItems={cart.items}
-        mealType={mealType}
         onSelectItem={handleUpsellSelect}
         onProceed={() => {
           setUpsellOpen(false)
+          setUpsellSnapshot([])
           setCheckoutOpen(true)
         }}
         onClose={() => {
           setUpsellOpen(false)
+          setUpsellSnapshot([])
           setCartOpen(true)
         }}
       />
@@ -428,8 +425,10 @@ function OrderContent() {
             // Proceeding to checkout — also dismiss any in-progress customizer.
             closeCustomizer()
             setCartOpen(false)
-            // Only stop at the upsell step if there's actually something to suggest.
-            if (shouldShowUpsell(categories, items, cart.items, mealType)) {
+            // Snapshot what's missing right now; the list is FROZEN for this session.
+            const missing = computeUpsellMissing(categories, items, cart.items, mealType)
+            if (missing.length > 0) {
+              setUpsellSnapshot(missing)
               setUpsellOpen(true)
             } else {
               setCheckoutOpen(true)

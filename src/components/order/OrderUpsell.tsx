@@ -1,5 +1,4 @@
-import { useMemo } from 'react'
-import { MenuCategory, MenuItem, CartItem } from '../../types'
+import { MenuCategory, MenuItem } from '../../types'
 import { useCart } from '../../context/CartContext'
 import { Coffee, UtensilsCrossed, X, ArrowRight, ShoppingCart, Plus } from 'lucide-react'
 
@@ -10,35 +9,36 @@ const upsellSortIndex = (name: string) => {
   return idx === -1 ? 999 : idx
 }
 
-// Pure helper used by OrderOnline to decide whether the upsell should ever appear.
-export function shouldShowUpsell(
+// Pure helper called once when the user taps "Continue to Checkout".
+// The result is frozen for the upsell session — sections do NOT change as
+// the user adds drinks/sides during this same session.
+export function computeUpsellMissing(
   categories: MenuCategory[],
   items: MenuItem[],
-  cartItems: CartItem[],
+  cartItems: { menu_item_id: string }[],
   mealType: 'breakfast' | 'lunch_dinner',
-): boolean {
+): MenuCategory[] {
   const inScope = categories.filter(c => c.meal_type === mealType)
   const cartCategoryIds = new Set(
     cartItems
       .map(ci => items.find(i => i.id === ci.menu_item_id)?.category_id)
       .filter(Boolean) as string[]
   )
+  // Don't suggest add-ons to someone who hasn't ordered a main yet.
   const hasMain = inScope.some(
     c => !UPSELL_CATEGORY_NAMES.includes(c.name) && cartCategoryIds.has(c.id)
   )
-  if (!hasMain) return false
-  const missing = inScope.some(
-    c => UPSELL_CATEGORY_NAMES.includes(c.name) && !cartCategoryIds.has(c.id)
-  )
-  return missing
+  if (!hasMain) return []
+  return inScope
+    .filter(c => UPSELL_CATEGORY_NAMES.includes(c.name) && !cartCategoryIds.has(c.id))
+    .sort((a, b) => upsellSortIndex(a.name) - upsellSortIndex(b.name))
 }
 
 interface Props {
   open: boolean
-  categories: MenuCategory[]
+  // Frozen list of categories to suggest. Computed once when the upsell opens.
+  missingCategories: MenuCategory[]
   items: MenuItem[]
-  cartItems: CartItem[]
-  mealType: 'breakfast' | 'lunch_dinner'
   onSelectItem: (item: MenuItem) => void
   onProceed: () => void
   onClose: () => void
@@ -46,27 +46,13 @@ interface Props {
 
 export default function OrderUpsell({
   open,
-  categories,
+  missingCategories,
   items,
-  cartItems,
-  mealType,
   onSelectItem,
   onProceed,
   onClose,
 }: Props) {
   const cart = useCart()
-
-  const missingCategories = useMemo(() => {
-    const inScope = categories.filter(c => c.meal_type === mealType)
-    const cartCategoryIds = new Set(
-      cartItems
-        .map(ci => items.find(i => i.id === ci.menu_item_id)?.category_id)
-        .filter(Boolean) as string[]
-    )
-    return inScope
-      .filter(c => UPSELL_CATEGORY_NAMES.includes(c.name) && !cartCategoryIds.has(c.id))
-      .sort((a, b) => upsellSortIndex(a.name) - upsellSortIndex(b.name))
-  }, [categories, items, cartItems, mealType])
 
   if (!open || missingCategories.length === 0) return null
 
