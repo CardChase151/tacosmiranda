@@ -418,22 +418,29 @@ function OrderContent() {
               onClick={cart.undo}
               disabled={!cart.canUndo}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
+                minWidth: 56,
+                height: 52,
+                padding: '6px 8px',
+                borderRadius: 14,
                 background: 'var(--dark-card)',
                 border: '1px solid var(--border)',
                 color: cart.canUndo ? 'var(--gold)' : 'var(--gray)',
                 cursor: cart.canUndo ? 'pointer' : 'default',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 2,
                 opacity: cart.canUndo ? 1 : 0.4,
                 flexShrink: 0,
               }}
-              title="Undo"
+              title="Undo last item"
+              aria-label="Undo last item"
             >
-              <Undo2 size={18} />
+              <Undo2 size={16} />
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', lineHeight: 1 }}>
+                Undo
+              </span>
             </button>
 
             {/* Main Cart Bar */}
@@ -482,22 +489,29 @@ function OrderContent() {
               onClick={cart.redo}
               disabled={!cart.canRedo}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
+                minWidth: 56,
+                height: 52,
+                padding: '6px 8px',
+                borderRadius: 14,
                 background: 'var(--dark-card)',
                 border: '1px solid var(--border)',
                 color: cart.canRedo ? 'var(--gold)' : 'var(--gray)',
                 cursor: cart.canRedo ? 'pointer' : 'default',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 2,
                 opacity: cart.canRedo ? 1 : 0.4,
                 flexShrink: 0,
               }}
-              title="Redo"
+              title="Redo last item"
+              aria-label="Redo last item"
             >
-              <Redo2 size={18} />
+              <Redo2 size={16} />
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', lineHeight: 1 }}>
+                Redo
+              </span>
             </button>
           </div>
         </div>
