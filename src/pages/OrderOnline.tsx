@@ -361,16 +361,14 @@ function OrderContent() {
       {/* Item Customizer Modal */}
       {selectedItem && (
         <ItemCustomizer
+          key={editingCartItem?.cart_id || selectedItem.id}
           item={selectedItem}
           modifierGroups={getItemModifierGroups(selectedItem.id)}
           itemIngredients={getItemIngredients(selectedItem.id)}
           editingCartItem={editingCartItem || undefined}
           onAdd={(cartItem) => cart.addItem(cartItem)}
           onUpdate={(cartId, updates) => cart.updateItem(cartId, updates)}
-          onViewCart={() => {
-            closeCustomizer()
-            setCartOpen(true)
-          }}
+          onViewCart={() => setCartOpen(true)}
           onClose={closeCustomizer}
         />
       )}
@@ -386,6 +384,8 @@ function OrderContent() {
           isOpen={cartOpen}
           onClose={() => setCartOpen(false)}
           onCheckout={() => {
+            // Proceeding to checkout — also dismiss any in-progress customizer.
+            closeCustomizer()
             setCartOpen(false)
             setCheckoutOpen(true)
           }}
