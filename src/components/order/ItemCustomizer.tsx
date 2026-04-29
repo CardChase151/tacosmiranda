@@ -10,7 +10,8 @@ import {
   CartItemModifier,
   CartItemIngredient,
 } from '../../types'
-import { X, Plus, Minus, Check } from 'lucide-react'
+import { useCart } from '../../context/CartContext'
+import { X, Plus, Minus, Check, ShoppingCart } from 'lucide-react'
 
 interface Props {
   item: MenuItem
@@ -36,11 +37,14 @@ interface Props {
   }) => void
   // Called when saving in edit mode.
   onUpdate?: (cartId: string, data: Partial<CartItem>) => void
+  // Called when the user taps the cart preview chip to review their cart.
+  onViewCart?: () => void
   onClose: () => void
 }
 
-export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onClose }: Props) {
+export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onViewCart, onClose }: Props) {
   const isEditing = !!editingCartItem
+  const cart = useCart()
 
   // Build initial modifier selections (groupId -> [modifierIds]) from cart item if editing.
   const buildInitialModifiers = useCallback(() => {
@@ -672,6 +676,48 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
             </button>
           </div>
         </div>
+
+        {/* Cart Preview Chip */}
+        {cart.itemCount > 0 && (
+          <div style={{ padding: '0 24px 12px' }}>
+            <button
+              onClick={onViewCart}
+              disabled={!onViewCart}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '12px 16px',
+                background: justAdded ? 'rgba(74,222,128,0.10)' : 'rgba(200,168,78,0.06)',
+                border: `1px solid ${justAdded ? 'rgba(74,222,128,0.4)' : 'rgba(200,168,78,0.25)'}`,
+                borderRadius: 12,
+                cursor: onViewCart ? 'pointer' : 'default',
+                transition: 'all 0.25s ease',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <ShoppingCart size={16} color={justAdded ? '#4ade80' : '#C8A84E'} />
+                <span style={{
+                  color: justAdded ? '#4ade80' : '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                }}>
+                  {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'} in cart
+                </span>
+              </span>
+              <span style={{
+                color: justAdded ? '#4ade80' : '#C8A84E',
+                fontSize: 14,
+                fontWeight: 700,
+              }}>
+                ${cart.total.toFixed(2)}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -367,6 +367,10 @@ function OrderContent() {
           editingCartItem={editingCartItem || undefined}
           onAdd={(cartItem) => cart.addItem(cartItem)}
           onUpdate={(cartId, updates) => cart.updateItem(cartId, updates)}
+          onViewCart={() => {
+            closeCustomizer()
+            setCartOpen(true)
+          }}
           onClose={closeCustomizer}
         />
       )}
