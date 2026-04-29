@@ -70,7 +70,14 @@ function OrderContent() {
     setEditingCartItem(null)
     if (returnToUpsell) {
       setReturnToUpsell(false)
-      setUpsellOpen(true)
+      // Came back from a customizer that was launched out of the upsell flow.
+      // If the upsell still has something to suggest, re-open it. Otherwise jump
+      // to checkout — don't strand the user on the menu after they added a drink.
+      if (shouldShowUpsell(categories, items, cart.items, mealType)) {
+        setUpsellOpen(true)
+      } else {
+        setCheckoutOpen(true)
+      }
     }
   }
 

@@ -3,7 +3,12 @@ import { MenuCategory, MenuItem, CartItem } from '../../types'
 import { useCart } from '../../context/CartContext'
 import { Coffee, UtensilsCrossed, X, ArrowRight, ShoppingCart, Plus } from 'lucide-react'
 
+// Order matters — controls the section order in the upsell.
 const UPSELL_CATEGORY_NAMES = ['Drinks', 'Sides']
+const upsellSortIndex = (name: string) => {
+  const idx = UPSELL_CATEGORY_NAMES.indexOf(name)
+  return idx === -1 ? 999 : idx
+}
 
 // Pure helper used by OrderOnline to decide whether the upsell should ever appear.
 export function shouldShowUpsell(
@@ -58,9 +63,9 @@ export default function OrderUpsell({
         .map(ci => items.find(i => i.id === ci.menu_item_id)?.category_id)
         .filter(Boolean) as string[]
     )
-    return inScope.filter(
-      c => UPSELL_CATEGORY_NAMES.includes(c.name) && !cartCategoryIds.has(c.id)
-    )
+    return inScope
+      .filter(c => UPSELL_CATEGORY_NAMES.includes(c.name) && !cartCategoryIds.has(c.id))
+      .sort((a, b) => upsellSortIndex(a.name) - upsellSortIndex(b.name))
   }, [categories, items, cartItems, mealType])
 
   if (!open || missingCategories.length === 0) return null
