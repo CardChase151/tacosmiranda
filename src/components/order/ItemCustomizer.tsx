@@ -39,10 +39,15 @@ interface Props {
   onUpdate?: (cartId: string, data: Partial<CartItem>) => void
   // Called when the user taps the cart preview chip to review their cart.
   onViewCart?: () => void
+  // If true, the primary button adds + closes immediately instead of staying open.
+  // Used when the customizer is launched from a focused flow (e.g. the upsell).
+  closeOnAdd?: boolean
+  // Optional override for the secondary back-button label (defaults to "Back to Menu").
+  closeButtonLabel?: string
   onClose: () => void
 }
 
-export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onViewCart, onClose }: Props) {
+export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onViewCart, closeOnAdd, closeButtonLabel, onClose }: Props) {
   const isEditing = !!editingCartItem
   const cart = useCart()
 
@@ -230,6 +235,11 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
 
   const handleAddAnother = () => {
     onAdd(buildPayload())
+    if (closeOnAdd) {
+      // Focused flow (e.g. upsell): add + return to wherever we came from.
+      onClose()
+      return
+    }
     resetForAnother()
     setJustAdded(true)
     window.setTimeout(() => setJustAdded(false), 1600)
@@ -770,7 +780,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                 transition: 'all 0.2s',
               }}
             >
-              Back to Menu
+              {closeButtonLabel || 'Back to Menu'}
             </button>
           )}
         </div>

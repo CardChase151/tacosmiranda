@@ -390,6 +390,8 @@ function OrderContent() {
           onAdd={(cartItem) => cart.addItem(cartItem)}
           onUpdate={(cartId, updates) => cart.updateItem(cartId, updates)}
           onViewCart={() => setCartOpen(true)}
+          closeOnAdd={returnToUpsell}
+          closeButtonLabel={returnToUpsell ? 'Back to Suggestions' : undefined}
           onClose={closeCustomizer}
         />
       )}
