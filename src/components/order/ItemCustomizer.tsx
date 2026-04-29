@@ -721,30 +721,6 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
 
         {/* Action Buttons */}
         <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {!isEditing && (
-            <button
-              onClick={onClose}
-              style={{
-                width: '100%',
-                padding: '12px 20px',
-                background: 'transparent',
-                border: '1px solid rgba(200,168,78,0.4)',
-                borderRadius: 12,
-                color: '#C8A84E',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                letterSpacing: 0.5,
-                transition: 'all 0.2s',
-              }}
-            >
-              Back to Menu
-            </button>
-          )}
           <button
             onClick={isEditing ? handleAdd : handleAddAnother}
             style={{
@@ -773,6 +749,30 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
               <><Plus size={18} /> Add to Cart - ${lineTotal.toFixed(2)}</>
             )}
           </button>
+          {!isEditing && (
+            <button
+              onClick={onClose}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                background: 'transparent',
+                border: '1px solid rgba(200,168,78,0.4)',
+                borderRadius: 12,
+                color: '#C8A84E',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                letterSpacing: 0.5,
+                transition: 'all 0.2s',
+              }}
+            >
+              Back to Menu
+            </button>
+          )}
         </div>
       </div>
     </div>
