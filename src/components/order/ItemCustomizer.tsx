@@ -723,14 +723,14 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
         <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {!isEditing && (
             <button
-              onClick={handleAddAnother}
+              onClick={onClose}
               style={{
                 width: '100%',
                 padding: '12px 20px',
                 background: 'transparent',
                 border: '1px solid rgba(200,168,78,0.4)',
                 borderRadius: 12,
-                color: justAdded ? '#4ade80' : '#C8A84E',
+                color: '#C8A84E',
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -742,23 +742,15 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                 transition: 'all 0.2s',
               }}
             >
-              {justAdded ? (
-                <>
-                  <Check size={16} /> Added · keep customizing
-                </>
-              ) : (
-                <>
-                  <Plus size={16} /> Add and customize another
-                </>
-              )}
+              Back to Menu
             </button>
           )}
           <button
-            onClick={handleAdd}
+            onClick={isEditing ? handleAdd : handleAddAnother}
             style={{
               width: '100%',
               padding: '14px 24px',
-              background: '#C8A84E',
+              background: justAdded && !isEditing ? '#4ade80' : '#C8A84E',
               border: 'none',
               borderRadius: 12,
               color: '#000',
@@ -770,9 +762,16 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
               justifyContent: 'center',
               gap: 8,
               letterSpacing: 0.5,
+              transition: 'background 0.25s ease',
             }}
           >
-            {isEditing ? `Update Order - $${lineTotal.toFixed(2)}` : `Add to Order - $${lineTotal.toFixed(2)}`}
+            {isEditing ? (
+              <>Update Order - ${lineTotal.toFixed(2)}</>
+            ) : justAdded ? (
+              <><Check size={18} /> Added to Cart</>
+            ) : (
+              <><Plus size={18} /> Add to Cart - ${lineTotal.toFixed(2)}</>
+            )}
           </button>
         </div>
       </div>
