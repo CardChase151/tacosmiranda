@@ -221,6 +221,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
     } else {
       onAdd(buildPayload())
     }
+    onClose()
   }
 
   const handleAddAnother = () => {
@@ -228,6 +229,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
     resetForAnother()
     setJustAdded(true)
     window.setTimeout(() => setJustAdded(false), 1600)
+    // intentionally NOT calling onClose — modal stays open for next customization
   }
 
   return (

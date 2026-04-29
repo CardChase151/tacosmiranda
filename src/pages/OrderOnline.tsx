@@ -365,14 +365,8 @@ function OrderContent() {
           modifierGroups={getItemModifierGroups(selectedItem.id)}
           itemIngredients={getItemIngredients(selectedItem.id)}
           editingCartItem={editingCartItem || undefined}
-          onAdd={(cartItem) => {
-            cart.addItem(cartItem)
-            closeCustomizer()
-          }}
-          onUpdate={(cartId, updates) => {
-            cart.updateItem(cartId, updates)
-            closeCustomizer()
-          }}
+          onAdd={(cartItem) => cart.addItem(cartItem)}
+          onUpdate={(cartId, updates) => cart.updateItem(cartId, updates)}
           onClose={closeCustomizer}
         />
       )}
