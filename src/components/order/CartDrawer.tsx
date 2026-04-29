@@ -1,5 +1,6 @@
 import { useCart } from '../../context/CartContext'
 import { X, Trash2, ShoppingCart } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 
 interface CartDrawerProps {
   isOpen: boolean
@@ -9,6 +10,8 @@ interface CartDrawerProps {
 
 export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
   const cart = useCart()
+  const [searchParams] = useSearchParams()
+  const wasCancelled = searchParams.get('cancelled') === 'true'
 
   if (!isOpen) return null
 
@@ -95,6 +98,21 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
             <X size={22} />
           </button>
         </div>
+
+        {wasCancelled && cart.items.length > 0 && (
+          <div style={{
+            background: 'rgba(251,191,36,0.08)',
+            borderBottom: '1px solid rgba(251,191,36,0.3)',
+            padding: '10px 24px',
+          }}>
+            <p style={{ color: '#fbbf24', fontSize: 12, fontWeight: 600, margin: 0, letterSpacing: 0.3 }}>
+              Payment cancelled
+            </p>
+            <p style={{ color: 'var(--gray)', fontSize: 11, margin: '2px 0 0', lineHeight: 1.5 }}>
+              Your cart was preserved. Tap Checkout when you're ready to retry.
+            </p>
+          </div>
+        )}
 
         {/* Cart Items */}
         <div style={{
