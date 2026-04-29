@@ -651,6 +651,9 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Name *</label>
                 <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Your name" style={inputStyle} />
+                <p style={{ color: 'var(--gray)', fontSize: 11, margin: '6px 0 0', lineHeight: 1.5 }}>
+                  Name for the order pickup
+                </p>
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Phone *</label>
@@ -659,6 +662,9 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Email *</label>
                 <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} />
+                <p style={{ color: 'var(--gray)', fontSize: 11, margin: '6px 0 0', lineHeight: 1.5 }}>
+                  This will link to Stripe during checkout
+                </p>
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={labelStyle}>Special Instructions (Optional)</label>

@@ -18,6 +18,7 @@ import { useCart, CartProvider } from '../context/CartContext'
 import ItemCustomizer from '../components/order/ItemCustomizer'
 import CartDrawer from '../components/order/CartDrawer'
 import OrderCheckout from '../components/order/OrderCheckout'
+import OrderUpsell, { shouldShowUpsell } from '../components/order/OrderUpsell'
 import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus } from 'lucide-react'
 
 function OrderContent() {
@@ -50,6 +51,9 @@ function OrderContent() {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
+  const [upsellOpen, setUpsellOpen] = useState(false)
+  // True when the customizer was launched from the upsell flow — so closing it returns to upsell.
+  const [returnToUpsell, setReturnToUpsell] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [reorderLoaded, setReorderLoaded] = useState(false)
 
@@ -64,6 +68,16 @@ function OrderContent() {
   const closeCustomizer = () => {
     setSelectedItem(null)
     setEditingCartItem(null)
+    if (returnToUpsell) {
+      setReturnToUpsell(false)
+      setUpsellOpen(true)
+    }
+  }
+
+  const handleUpsellSelect = (item: MenuItem) => {
+    setUpsellOpen(false)
+    setReturnToUpsell(true)
+    setSelectedItem(item)
   }
 
   // Pick up reorder items from MyOrders page
@@ -378,6 +392,24 @@ function OrderContent() {
         <OrderCheckout onBack={() => setCheckoutOpen(false)} />
       )}
 
+      {/* Pre-checkout Upsell */}
+      <OrderUpsell
+        open={upsellOpen && !checkoutOpen && !selectedItem}
+        categories={categories}
+        items={items}
+        cartItems={cart.items}
+        mealType={mealType}
+        onSelectItem={handleUpsellSelect}
+        onProceed={() => {
+          setUpsellOpen(false)
+          setCheckoutOpen(true)
+        }}
+        onClose={() => {
+          setUpsellOpen(false)
+          setCartOpen(true)
+        }}
+      />
+
       {/* Cart Drawer */}
       {!checkoutOpen && (
         <CartDrawer
@@ -387,7 +419,12 @@ function OrderContent() {
             // Proceeding to checkout — also dismiss any in-progress customizer.
             closeCustomizer()
             setCartOpen(false)
-            setCheckoutOpen(true)
+            // Only stop at the upsell step if there's actually something to suggest.
+            if (shouldShowUpsell(categories, items, cart.items, mealType)) {
+              setUpsellOpen(true)
+            } else {
+              setCheckoutOpen(true)
+            }
           }}
           onEdit={handleEditCartItem}
           hasActiveCustomizer={!!selectedItem}
