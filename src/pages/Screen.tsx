@@ -26,7 +26,7 @@ export default function Screen() {
   const fetchMenu = useCallback(async () => {
     const [catRes, itemRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
-      supabase.from('menu_items').select('*').order('sort_order'),
+      supabase.from('menu_items').select('*').eq('is_test', false).order('sort_order'),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
