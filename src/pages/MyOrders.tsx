@@ -37,8 +37,27 @@ interface OrderRecord {
   total: number
   special_instructions: string
   created_at: string
+  paid_at?: string | null
   items: OrderItem[]
 }
+
+interface ConfirmedOrder {
+  id: string
+  order_number: string
+  customer_name: string | null
+  customer_email: string | null
+  customer_phone: string | null
+  status: string
+  subtotal: number
+  tax: number
+  total: number
+  special_instructions: string | null
+  created_at: string
+  paid_at: string | null
+}
+
+const READY_WINDOW_MIN = 10
+const READY_WINDOW_MAX = 15
 
 export default function MyOrders() {
   const { user } = useAuth()
@@ -49,12 +68,36 @@ export default function MyOrders() {
   const [menuPrices, setMenuPrices] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null)
 
   // Clear cart only when Stripe redirects here with a session_id (payment confirmed).
   useEffect(() => {
     if (sessionId) {
       try { localStorage.removeItem('tm_cart') } catch { /* ignore */ }
     }
+  }, [sessionId])
+
+  // Look up the just-paid order by Stripe session id (works for guests too).
+  // Polls briefly because the webhook flips status from awaiting_payment → pending
+  // a beat after redirect.
+  useEffect(() => {
+    if (!sessionId) return
+    let cancelled = false
+    let attempts = 0
+    const tick = async () => {
+      attempts += 1
+      const { data, error } = await supabase.rpc('get_order_by_session_id', { p_session_id: sessionId })
+      if (cancelled) return
+      const row = Array.isArray(data) ? data[0] : null
+      if (row) {
+        setConfirmedOrder(row as ConfirmedOrder)
+        return
+      }
+      if (error) console.warn('[my-orders] confirmation lookup error:', error.message)
+      if (attempts < 6) setTimeout(tick, 1500)
+    }
+    tick()
+    return () => { cancelled = true }
   }, [sessionId])
 
   const fetchOrders = useCallback(async () => {
@@ -187,11 +230,150 @@ export default function MyOrders() {
     }
   }
 
-  if (!user) {
+  const formatTimeOnly = (iso: string) =>
+    new Date(iso).toLocaleTimeString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+
+  // Returns a "ready by ~ X:YY PM" estimate based on paid_at + window.
+  // Not tracked, not real — purely informational.
+  const readyEstimate = (paidAtIso: string | null | undefined) => {
+    if (!paidAtIso) return null
+    const paid = new Date(paidAtIso).getTime()
+    const earliest = new Date(paid + READY_WINDOW_MIN * 60_000)
+    const latest = new Date(paid + READY_WINDOW_MAX * 60_000)
+    return {
+      earliest: formatTimeOnly(earliest.toISOString()),
+      latest: formatTimeOnly(latest.toISOString()),
+    }
+  }
+
+  // ============ Confirmation card ============
+  // Rendered when we land here with ?session_id=… Works for guest + logged-in.
+  const ConfirmationCard = ({ order }: { order: ConfirmedOrder }) => {
+    const eta = readyEstimate(order.paid_at)
+    return (
+      <div style={{
+        background: 'linear-gradient(180deg, rgba(200,168,78,0.12) 0%, rgba(200,168,78,0.04) 100%)',
+        border: '1px solid rgba(200,168,78,0.4)',
+        borderRadius: 16,
+        padding: '28px 24px 24px',
+        marginBottom: 24,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%', background: '#4ade80',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Check size={18} color="#0a0a0a" strokeWidth={3} />
+          </div>
+          <span style={{
+            color: '#4ade80', fontSize: 11, fontWeight: 700, letterSpacing: 2.5,
+            textTransform: 'uppercase',
+          }}>
+            Order Confirmed
+          </span>
+        </div>
+
+        <p style={{ color: 'var(--gray)', fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase', margin: '0 0 4px' }}>
+          Order Number
+        </p>
+        <p style={{
+          color: 'var(--gold)', fontSize: 36, fontWeight: 700, letterSpacing: 4,
+          fontFamily: 'var(--font-heading)', lineHeight: 1, margin: '0 0 16px',
+        }}>
+          {order.order_number}
+        </p>
+
+        <div style={{
+          background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(200,168,78,0.2)',
+          borderRadius: 12, padding: '14px 16px', marginBottom: 14,
+        }}>
+          <p style={{ color: 'var(--white)', fontSize: 15, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
+            Your order will be ready soon!
+          </p>
+          <p style={{ color: 'var(--gray)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.5 }}>
+            Head over and give us <strong style={{ color: 'var(--gold)' }}>{READY_WINDOW_MIN}–{READY_WINDOW_MAX} minutes</strong> to have everything ready for pickup.
+          </p>
+          {eta && (
+            <p style={{ color: 'var(--gray)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.5 }}>
+              Estimated ready by <strong style={{ color: 'var(--white)' }}>{eta.earliest}</strong>–<strong style={{ color: 'var(--white)' }}>{eta.latest}</strong>
+            </p>
+          )}
+        </div>
+
+        <div style={{
+          background: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 12,
+        }}>
+          <p style={{ color: 'var(--gold)', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            Pickup
+          </p>
+          <p style={{ color: 'var(--white)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            21582 Brookhurst St, Huntington Beach, CA 92646
+          </p>
+          <a href="tel:6578454011" style={{ color: 'var(--gold)', fontSize: 14, fontWeight: 600, textDecoration: 'none', display: 'inline-block', marginTop: 4 }}>
+            (657) 845-4011
+          </a>
+        </div>
+
+        <p style={{ color: 'var(--gray)', fontSize: 11, fontStyle: 'italic', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
+          Times above are estimated only — we don't track or update them in real time. Please call us if anything changes.
+        </p>
+
+        <p style={{ color: 'var(--gray)', fontSize: 11, margin: '12px 0 0', lineHeight: 1.5 }}>
+          📸 Tip: screenshot this page for your records.
+        </p>
+      </div>
+    )
+  }
+
+  // Guest landing without a session_id — nothing to show.
+  if (!user && !sessionId) {
     return (
       <div style={{ padding: '80px 24px', textAlign: 'center' }}>
         <p style={{ color: 'var(--gray)', fontSize: 16 }}>Please log in to view your orders.</p>
         <Link to="/" style={{ color: 'var(--gold)', fontSize: 14 }}>Back to Home</Link>
+      </div>
+    )
+  }
+
+  // Guest with session_id — render confirmation only (no orders list).
+  if (!user && sessionId) {
+    return (
+      <div style={{ padding: '32px 20px 80px', maxWidth: 600, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 24 }}>
+          <Link to="/" style={{ position: 'absolute', left: 0, color: 'var(--gold)', display: 'flex', alignItems: 'center', textDecoration: 'none', fontSize: 14, gap: 4 }}>
+            <ArrowLeft size={18} /> Home
+          </Link>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, color: 'var(--white)', textAlign: 'center', letterSpacing: 3, margin: 0 }}>
+            Thank You
+          </h1>
+        </div>
+
+        {confirmedOrder ? (
+          <ConfirmationCard order={confirmedOrder} />
+        ) : (
+          <div style={{
+            background: 'rgba(200,168,78,0.06)', border: '1px solid rgba(200,168,78,0.2)',
+            borderRadius: 12, padding: '32px 20px', textAlign: 'center',
+          }}>
+            <p style={{ color: 'var(--gray)', fontSize: 14, margin: 0 }}>
+              Confirming your order...
+            </p>
+          </div>
+        )}
+
+        <div style={{
+          background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)',
+          borderRadius: 10, padding: '12px 14px', marginTop: 16,
+        }}>
+          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+            Want to see your past orders next time? Create an account during checkout.
+          </p>
+        </div>
       </div>
     )
   }
@@ -214,29 +396,7 @@ export default function MyOrders() {
         </h1>
       </div>
 
-      {sessionId && (
-        <div style={{
-          background: 'rgba(74,222,128,0.08)',
-          border: '1px solid rgba(74,222,128,0.3)',
-          borderRadius: 10,
-          padding: '14px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%', background: '#4ade80',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Check size={16} color="#0a0a0a" />
-          </div>
-          <div>
-            <p style={{ color: 'var(--white)', fontSize: 14, margin: 0, fontWeight: 600 }}>Payment received</p>
-            <p style={{ color: 'var(--gray)', fontSize: 12, margin: '2px 0 0' }}>Your order is in. Confirmation email is on the way.</p>
-          </div>
-        </div>
-      )}
+      {sessionId && confirmedOrder && <ConfirmationCard order={confirmedOrder} />}
 
       <div style={{
         background: 'rgba(200,168,78,0.06)',
@@ -322,6 +482,14 @@ export default function MyOrders() {
                       <p style={{ color: 'var(--gray)', fontSize: 12, margin: '2px 0 0' }}>
                         {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                       </p>
+                      {(order.status === 'pending' || order.status === 'confirmed' || order.status === 'preparing') && order.paid_at && (() => {
+                        const eta = readyEstimate(order.paid_at)
+                        return eta ? (
+                          <p style={{ color: 'var(--gold)', fontSize: 11, margin: '4px 0 0', fontWeight: 600, opacity: 0.85 }}>
+                            Ready ~{eta.earliest}–{eta.latest} <span style={{ color: 'var(--gray)', fontWeight: 400, opacity: 0.7 }}>(estimate, not tracked)</span>
+                          </p>
+                        ) : null
+                      })()}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: 'var(--white)', fontSize: 18, fontWeight: 700 }}>

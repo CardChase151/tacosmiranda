@@ -313,7 +313,20 @@ function renderCustomerEmail(order: OrderInfo, items: OrderItem[]): string {
                 Thanks${order.customer_name ? `, ${escape(order.customer_name)}` : ''}!
               </div>
               <div style="color:${COLORS.textDim};font-size:14px;line-height:1.6;margin-top:6px;">
-                We received your order and we&rsquo;re cooking now. Please come pick it up at the location below.
+                We received your order and we&rsquo;re cooking now. Head over and give us
+                <strong style="color:${COLORS.gold};">10–15 minutes</strong> to have everything ready for pickup.
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:14px 32px 0;">
+              <div style="background:${COLORS.cardAlt};border-radius:10px;padding:12px 16px;border-left:3px solid ${COLORS.gold};">
+                <div style="color:${COLORS.gold};font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">Heads Up</div>
+                <div style="color:${COLORS.textDim};font-size:12px;line-height:1.5;">
+                  We don&rsquo;t track or update your order in real time. The 10–15 minute window is an estimate. If anything changes,
+                  <a href="${PHONE_HREF}" style="color:${COLORS.gold};text-decoration:none;">give us a call</a>.
+                </div>
               </div>
             </td>
           </tr>
