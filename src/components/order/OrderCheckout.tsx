@@ -742,7 +742,7 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
                 lineHeight: 1.5,
               }}>
                 Once your order is confirmed, cooking starts right away.<br/>
-                <strong style={{ color: 'var(--gold)' }}>No online cancellations or refunds.</strong> For issues, call us at <a href="tel:6578454011" style={{ color: 'var(--gold)', textDecoration: 'none' }}>(657) 845-4011</a>.
+                <strong style={{ color: 'var(--gold)' }}>No online cancellations or refunds.</strong> For changes, cancellations, or refunds please call <a href="tel:6578454011" style={{ color: 'var(--gold)', textDecoration: 'none' }}>(657) 845-4011</a> or email <a href="mailto:thek2way17@gmail.com" style={{ color: 'var(--gold)', textDecoration: 'none' }}>thek2way17@gmail.com</a>.
               </p>
             </div>
           </>

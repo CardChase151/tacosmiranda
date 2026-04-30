@@ -13,6 +13,7 @@ export interface MenuItem {
   description: string
   sort_order: number
   is_test?: boolean
+  is_86?: boolean
 }
 
 export interface EmailSubscriber {

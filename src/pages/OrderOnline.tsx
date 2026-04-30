@@ -19,10 +19,15 @@ import ItemCustomizer from '../components/order/ItemCustomizer'
 import CartDrawer from '../components/order/CartDrawer'
 import OrderCheckout from '../components/order/OrderCheckout'
 import OrderUpsell, { computeUpsellMissing } from '../components/order/OrderUpsell'
+import { getOpenStatus, BusinessHourRow, OpenStatus } from '../utils/businessHours'
+import { useAuth } from '../context/AuthContext'
 import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus } from 'lucide-react'
 
 function OrderContent() {
   const cart = useCart()
+  const { isAdmin } = useAuth()
+  const [openStatus, setOpenStatus] = useState<OpenStatus | null>(null)
+  const [orderingEnabled, setOrderingEnabled] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
   const wasCancelled = searchParams.get('cancelled') === 'true'
   const dismissCancelled = () => {
@@ -104,14 +109,16 @@ function OrderContent() {
   }, [reorderLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async () => {
-    const [catRes, itemRes, mgRes, modRes, linkRes, ingRes, miiRes] = await Promise.all([
+    const [catRes, itemRes, mgRes, modRes, linkRes, ingRes, miiRes, hoursRes, settingsRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
-      supabase.from('menu_items').select('*').order('sort_order'),
+      supabase.from('menu_items').select('*').eq('is_86', false).order('sort_order'),
       supabase.from('modifier_groups').select('*').order('sort_order'),
       supabase.from('modifiers').select('*').order('sort_order'),
       supabase.from('menu_item_modifier_groups').select('*').order('sort_order'),
       supabase.from('ingredients').select('*').order('sort_order'),
       supabase.from('menu_item_ingredients').select('*').order('sort_order'),
+      supabase.from('business_hours').select('*').order('day_order'),
+      supabase.from('site_settings').select('ordering_enabled').eq('id', 'main').maybeSingle(),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
@@ -120,6 +127,8 @@ function OrderContent() {
     if (linkRes.data) setMenuItemModifierGroups(linkRes.data)
     if (ingRes.data) setAllIngredients(ingRes.data)
     if (miiRes.data) setMenuItemIngredients(miiRes.data)
+    if (hoursRes.data) setOpenStatus(getOpenStatus(hoursRes.data as BusinessHourRow[]))
+    setOrderingEnabled(settingsRes.data?.ordering_enabled ?? true)
     setLoading(false)
   }, [])
 
@@ -157,11 +166,96 @@ function OrderContent() {
     )
   }
 
+  // Hard close: ordering disabled (admin override) OR outside business hours.
+  // Admins can always proceed so they can test/place phone orders.
+  const closed = !isAdmin && (!orderingEnabled || (openStatus && !openStatus.isOpen))
+  if (closed) {
+    return (
+      <div style={{ padding: '40px 24px 120px', maxWidth: 540, margin: '0 auto' }}>
+        <Helmet>
+          <meta name="robots" content="noindex, nofollow" />
+        </Helmet>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 24 }}>
+          <Link to="/" style={{ position: 'absolute', left: 0, color: 'var(--gold)', display: 'flex', alignItems: 'center', textDecoration: 'none', fontSize: 14, gap: 4 }}>
+            <ArrowLeft size={18} /> Home
+          </Link>
+        </div>
+        <div style={{
+          background: 'linear-gradient(180deg, rgba(200,168,78,0.1) 0%, rgba(200,168,78,0.03) 100%)',
+          border: '1px solid rgba(200,168,78,0.3)',
+          borderRadius: 16,
+          padding: '40px 24px',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(200,168,78,0.15)',
+            border: '1px solid rgba(200,168,78,0.4)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 18,
+          }}>
+            <span style={{ color: 'var(--gold)', fontSize: 26 }}>🌙</span>
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--white)', letterSpacing: 2, margin: '0 0 10px' }}>
+            We're closed right now
+          </h2>
+          <p style={{ color: 'var(--gray)', fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>
+            {!orderingEnabled
+              ? 'Online ordering is paused. Please call us if you need anything.'
+              : openStatus?.nextOpenLabel
+                ? <>Online ordering reopens <strong style={{ color: 'var(--gold)' }}>{openStatus.nextOpenLabel}</strong>.</>
+                : 'Please come back during business hours.'}
+          </p>
+          {openStatus?.todayHoursLabel && (
+            <p style={{ color: 'var(--gray)', fontSize: 12, opacity: 0.8, margin: '0 0 18px' }}>
+              Today's hours: {openStatus.todayHoursLabel}
+            </p>
+          )}
+          <a href="tel:6578454011" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '12px 24px',
+            background: 'var(--gold)', color: 'var(--black)',
+            borderRadius: 10, fontSize: 14, fontWeight: 700, letterSpacing: 0.5,
+            textDecoration: 'none',
+          }}>
+            Call (657) 845-4011
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 600, margin: '0 auto' }}>
       <Helmet>
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
+      {isAdmin && openStatus && !openStatus.isOpen && (
+        <div style={{
+          background: 'rgba(251,191,36,0.10)',
+          border: '1px solid rgba(251,191,36,0.4)',
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 16,
+        }}>
+          <p style={{ color: '#fbbf24', fontSize: 12, margin: 0, fontWeight: 600 }}>
+            Outside business hours — admin preview only. Customers see a closed message.
+          </p>
+        </div>
+      )}
+      {isAdmin && !orderingEnabled && (
+        <div style={{
+          background: 'rgba(239,68,68,0.10)',
+          border: '1px solid rgba(239,68,68,0.4)',
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 16,
+        }}>
+          <p style={{ color: '#fca5a5', fontSize: 12, margin: 0, fontWeight: 600 }}>
+            Online ordering is PAUSED for customers (admin override). Toggle in admin settings.
+          </p>
+        </div>
+      )}
 
       {wasCancelled && (
         <div style={{

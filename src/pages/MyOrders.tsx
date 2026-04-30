@@ -407,8 +407,9 @@ export default function MyOrders() {
         textAlign: 'center',
       }}>
         <p style={{ color: 'var(--gray)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-          Need to change or cancel an order? Online self-service isn't available since cooking starts immediately.
-          Please call us at <a href="tel:6578454011" style={{ color: 'var(--gold)', fontWeight: 600, textDecoration: 'none' }}>(657) 845-4011</a>.
+          Need to change, cancel, or get a refund? Online self-service isn't available since cooking starts immediately.
+          Please call <a href="tel:6578454011" style={{ color: 'var(--gold)', fontWeight: 600, textDecoration: 'none' }}>(657) 845-4011</a> or
+          email <a href="mailto:thek2way17@gmail.com" style={{ color: 'var(--gold)', fontWeight: 600, textDecoration: 'none' }}>thek2way17@gmail.com</a>.
         </p>
       </div>
 

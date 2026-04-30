@@ -71,8 +71,11 @@ export default function Home() {
   }, [isBreakfast])
 
   const filteredCategories = categories.filter(c => c.meal_type === mealType)
-  // Hide [TEST] menu items from non-admins on the public homepage.
-  const visibleItems = isAdmin ? items : items.filter(i => !i.is_test)
+  // Hide [TEST] and 86'd menu items from non-admins on the public homepage.
+  // Admins still see them but with a "86" badge so they can un-86 quickly.
+  const visibleItems = isAdmin
+    ? items
+    : items.filter(i => !i.is_test && !i.is_86)
 
   const searchLower = searchQuery.toLowerCase().trim()
   const searchedItems = searchLower

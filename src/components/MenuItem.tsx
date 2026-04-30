@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, EyeOff, Eye } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem as MenuItemType, MenuCategory } from '../types'
 import EditItemModal from './EditItemModal'
@@ -15,9 +15,18 @@ interface Props {
 export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories = [] }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [toggling, setToggling] = useState(false)
+  const is86 = !!item.is_86
 
   const handleDelete = async () => {
     await supabase.from('menu_items').delete().eq('id', item.id)
+    onUpdate()
+  }
+
+  const handleToggle86 = async () => {
+    setToggling(true)
+    await supabase.from('menu_items').update({ is_86: !is86 }).eq('id', item.id)
+    setToggling(false)
     onUpdate()
   }
 
@@ -26,10 +35,11 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
       <div
         style={{
           padding: '12px 0',
-          borderLeft: isAdmin ? '2px solid var(--gold)' : '2px solid transparent',
+          borderLeft: isAdmin ? (is86 ? '2px solid #ef4444' : '2px solid var(--gold)') : '2px solid transparent',
           paddingLeft: 16,
           marginLeft: -16,
           position: 'relative',
+          opacity: is86 ? 0.55 : 1,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -38,9 +48,19 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
             fontSize: 17,
             fontWeight: 600,
             color: light ? '#1a1a1a' : 'var(--white)',
+            textDecoration: is86 ? 'line-through' : 'none',
           }}>
             {item.name}
           </span>
+          {isAdmin && is86 && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase',
+              background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+              padding: '2px 6px', borderRadius: 4, lineHeight: 1.2,
+            }}>
+              86'd
+            </span>
+          )}
           <span style={{
             flex: 1,
             borderBottom: '1px dotted var(--gold-dim)',
@@ -60,6 +80,24 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
 
           {isAdmin && (
             <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+              <button
+                onClick={handleToggle86}
+                disabled={toggling}
+                style={{
+                  background: is86 ? 'rgba(74,222,128,0.15)' : 'none',
+                  border: 'none', borderRadius: 4,
+                  color: is86 ? '#4ade80' : '#ef4444',
+                  padding: '2px 6px',
+                  opacity: toggling ? 0.5 : 0.85,
+                  cursor: toggling ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                }}
+                title={is86 ? 'Bring back on the menu' : 'Hide from menu (86)'}
+              >
+                {is86 ? <Eye size={12} /> : <EyeOff size={12} />}
+                {is86 ? 'UN-86' : '86'}
+              </button>
               <button
                 onClick={() => setEditOpen(true)}
                 style={{ background: 'none', border: 'none', color: 'var(--gold)', padding: 4, opacity: 0.7, cursor: 'pointer' }}
