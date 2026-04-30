@@ -22,7 +22,7 @@ interface Status {
 }
 
 export default function AdminBilling() {
-  const { user, hasBilling, loading } = useAuth()
+  const { user, isOwner, loading } = useAuth()
   const [status, setStatus] = useState<Status | null>(null)
   const [working, setWorking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,8 +53,8 @@ export default function AdminBilling() {
   }
 
   useEffect(() => {
-    if (!loading && user && hasBilling) fetchStatus()
-  }, [loading, user, hasBilling])
+    if (!loading && user && isOwner) fetchStatus()
+  }, [loading, user, isOwner])
 
   const startOnboarding = async () => {
     setWorking('onboard')
@@ -106,7 +106,7 @@ export default function AdminBilling() {
       </div>
     )
   }
-  if (!user || !hasBilling) {
+  if (!user || !isOwner) {
     return (
       <div style={pageWrap}>
         <div style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center' }}>

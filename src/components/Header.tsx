@@ -9,7 +9,7 @@ interface HeaderProps {
 const MOBILE_BREAKPOINT = 768
 
 export default function Header({ onAdminClick }: HeaderProps) {
-  const { isAdmin, hasBilling, user, signOut } = useAuth()
+  const { isAdmin, isOwner, user, signOut } = useAuth()
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
   )
@@ -122,7 +122,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
               </a>
             </>
           )}
-          {hasBilling && (
+          {isOwner && (
             <a
               href="/admin/billing"
               style={{ ...navTextStyle, color: '#34d399', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
@@ -301,7 +301,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
                 </>
               )}
 
-              {hasBilling && (
+              {isOwner && (
                 <DrawerLink href="/admin/billing" label="Billing" icon={<CreditCard size={16} />} accentColor="#34d399" emphasized />
               )}
             </nav>

@@ -6,8 +6,10 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  // Staff or above. Can manage day-to-day operations (orders, 86 items, view dashboard).
   isAdmin: boolean
-  hasBilling: boolean
+  // The actual restaurant owner. Can edit menu/prices, see financials, change billing/settings.
+  isOwner: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
 }
@@ -27,16 +29,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [hasBilling, setHasBilling] = useState(false)
+  const [isOwner, setIsOwner] = useState(false)
 
   const checkAdmin = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
-      .select('is_admin, billing')
+      .select('is_admin, is_owner')
       .eq('id', userId)
       .single()
     setIsAdmin(data?.is_admin || false)
-    setHasBilling(data?.billing || false)
+    setIsOwner(data?.is_owner || false)
   }
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkAdmin(session.user.id)
       } else {
         setIsAdmin(false)
-        setHasBilling(false)
+        setIsOwner(false)
       }
       setLoading(false)
     })
@@ -69,10 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     setIsAdmin(false)
-    setHasBilling(false)
+    setIsOwner(false)
     await supabase.auth.signOut()
   }
 
-  const value = { user, session, loading, isAdmin, hasBilling, signIn, signOut }
+  const value = { user, session, loading, isAdmin, isOwner, signIn, signOut }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
