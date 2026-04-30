@@ -447,7 +447,8 @@ function OrderContent() {
           left: 0,
           right: 0,
           zIndex: 100,
-          padding: '0 24px 24px',
+          // Clear iPhone home indicator using safe-area insets.
+          padding: '0 24px max(24px, env(safe-area-inset-bottom))',
           pointerEvents: 'none',
         }}>
           <div style={{

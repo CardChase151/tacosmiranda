@@ -1,4 +1,5 @@
 import { useCart } from '../../context/CartContext'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { X, Trash2, Pencil, ShoppingCart } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { CartItem } from '../../types'
@@ -16,6 +17,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit, hasAct
   const cart = useCart()
   const [searchParams] = useSearchParams()
   const wasCancelled = searchParams.get('cancelled') === 'true'
+  useBodyScrollLock(isOpen)
 
   if (!isOpen) return null
 
@@ -90,13 +92,18 @@ export default function CartDrawer({ isOpen, onClose, onCheckout, onEdit, hasAct
           </div>
           <button
             onClick={onClose}
+            aria-label="Close cart"
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--gray)',
               cursor: 'pointer',
-              padding: 6,
+              width: 44,
+              height: 44,
               display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: -8,
             }}
           >
             <X size={22} />

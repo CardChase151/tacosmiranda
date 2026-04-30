@@ -23,13 +23,63 @@
   box-sizing: border-box;
 }
 
+html, body {
+  /* Lock the page width on iOS — prevents the rubber-band horizontal scroll. */
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--black);
   color: var(--white);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  /* Don't let mobile browsers auto-size text after rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Suppress the iOS Safari gray tap flash on every interactive element —
+   we provide our own :active feedback below. */
+a, button, [role="button"], input, select, textarea, label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Faster tap response: no 300ms double-tap-zoom delay; no accidental zoom. */
+button, [role="button"], a {
+  touch-action: manipulation;
+}
+
+/* Pressed-state feedback for primary buttons.
+   Pairs with explicit :active rules in components — feels tactile on touch. */
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.985);
+  transition: transform 0.08s ease;
+}
+
+/* Smooth momentum scrolling everywhere we let users scroll. */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scroll containment for our modal panels — prevents iOS rubber-band from
+   scrolling the page behind the modal when the modal hits its scroll edge. */
+.checkout-modal,
+.cart-drawer-modal,
+.item-customizer-modal,
+.upsell-modal {
+  overscroll-behavior: contain;
+}
+
+/* Hover effects only on devices that actually have hover — keeps mobile
+   from "sticking" hover state after a tap. Components add hover via CSS
+   classes that target this query when needed. */
+@media (hover: none) {
+  /* No-op block kept for consistency; per-component active styles handle
+     touch feedback via the global :active rule above. */
 }
 
 a {

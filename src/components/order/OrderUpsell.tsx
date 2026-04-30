@@ -1,5 +1,6 @@
 import { MenuCategory, MenuItem } from '../../types'
 import { useCart } from '../../context/CartContext'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { Coffee, UtensilsCrossed, X, ArrowRight, ShoppingCart, Plus } from 'lucide-react'
 
 // Order matters — controls the section order in the upsell.
@@ -53,6 +54,7 @@ export default function OrderUpsell({
   onClose,
 }: Props) {
   const cart = useCart()
+  useBodyScrollLock(open && missingCategories.length > 0)
 
   if (!open || missingCategories.length === 0) return null
 
@@ -129,8 +131,9 @@ export default function OrderUpsell({
           <button
             onClick={onClose}
             style={{
-              background: 'none', border: 'none', color: 'var(--gray)',
-              cursor: 'pointer', padding: 4, display: 'flex', flexShrink: 0,
+              background: 'none', border: 'none', color: 'var(--gray)', cursor: 'pointer',
+              width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, marginRight: -8,
             }}
             aria-label="Back to cart"
           >

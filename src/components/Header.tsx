@@ -273,8 +273,12 @@ export default function Header({ onAdminClick }: HeaderProps) {
                   border: 'none',
                   color: 'var(--gray)',
                   cursor: 'pointer',
-                  padding: 4,
+                  width: 44,
+                  height: 44,
                   display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: -8,
                 }}
                 aria-label="Close menu"
               >

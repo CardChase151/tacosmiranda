@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../config/supabase'
 import { useCart } from '../../context/CartContext'
 import { useAuth } from '../../context/AuthContext'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { Check, ChevronDown, ChevronUp, ArrowLeft, LogIn, UserPlus, User } from 'lucide-react'
 import type { CartItemIngredient } from '../../types'
 
@@ -14,6 +15,7 @@ interface OrderCheckoutProps {
 export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
   const cart = useCart()
   const { user, signIn } = useAuth()
+  useBodyScrollLock(true)
   const [mode, setMode] = useState<CheckoutMode>(user ? 'checkout' : 'gate')
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
@@ -395,11 +397,11 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Email</label>
-              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} enterKeyHint="next" onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={labelStyle}>Password</label>
-              <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={inputStyle} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+              <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={inputStyle} autoComplete="current-password" enterKeyHint="go" onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
             {authError && (
               <div style={{ padding: '10px 14px', background: 'rgba(204,68,68,0.15)', border: '1px solid rgba(204,68,68,0.3)', borderRadius: 8, marginBottom: 16 }}>
@@ -429,15 +431,15 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Name</label>
-              <input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Your name" style={inputStyle} />
+              <input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Your name" style={inputStyle} autoComplete="name" autoCapitalize="words" enterKeyHint="next" />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Email</label>
-              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} />
+              <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} enterKeyHint="next" />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={labelStyle}>Password</label>
-              <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="At least 6 characters" style={inputStyle} onKeyDown={e => e.key === 'Enter' && handleSignup()} />
+              <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="At least 6 characters" style={inputStyle} autoComplete="new-password" enterKeyHint="go" onKeyDown={e => e.key === 'Enter' && handleSignup()} />
             </div>
             {authError && (
               <div style={{ padding: '10px 14px', background: 'rgba(204,68,68,0.15)', border: '1px solid rgba(204,68,68,0.3)', borderRadius: 8, marginBottom: 16 }}>
@@ -650,25 +652,61 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
               {/* Customer Info */}
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Name *</label>
-                <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Your name" style={inputStyle} />
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Your name"
+                  style={inputStyle}
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  enterKeyHint="next"
+                />
                 <p style={{ color: 'var(--gray)', fontSize: 11, margin: '6px 0 0', lineHeight: 1.5 }}>
                   Name for the order pickup
                 </p>
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Phone *</label>
-                <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="(555) 123-4567" style={inputStyle} />
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  style={inputStyle}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  enterKeyHint="next"
+                />
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>Email *</label>
-                <input type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="your@email.com" style={inputStyle} />
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={e => setCustomerEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  style={inputStyle}
+                  autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  enterKeyHint="next"
+                />
                 <p style={{ color: 'var(--gray)', fontSize: 11, margin: '6px 0 0', lineHeight: 1.5 }}>
                   This will link to Stripe during checkout
                 </p>
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={labelStyle}>Special Instructions (Optional)</label>
-                <textarea value={orderInstructions} onChange={e => setOrderInstructions(e.target.value)} placeholder="Any special requests..." rows={2} style={{ ...inputStyle, resize: 'vertical' as const }} />
+                <textarea
+                  value={orderInstructions}
+                  onChange={e => setOrderInstructions(e.target.value)}
+                  placeholder="Any special requests..."
+                  rows={2}
+                  style={{ ...inputStyle, resize: 'vertical' as const }}
+                  enterKeyHint="done"
+                />
               </div>
 
               {error && (

@@ -11,6 +11,7 @@ import {
   CartItemIngredient,
 } from '../../types'
 import { useCart } from '../../context/CartContext'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { X, Plus, Minus, Check, ShoppingCart } from 'lucide-react'
 
 interface Props {
@@ -50,6 +51,7 @@ interface Props {
 export default function ItemCustomizer({ item, modifierGroups, itemIngredients, editingCartItem, onAdd, onUpdate, onViewCart, closeOnAdd, closeButtonLabel, onClose }: Props) {
   const isEditing = !!editingCartItem
   const cart = useCart()
+  useBodyScrollLock(true)
 
   // Build initial modifier selections (groupId -> [modifierIds]) from cart item if editing.
   const buildInitialModifiers = useCallback(() => {
@@ -313,14 +315,19 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: 'none',
               border: 'none',
               color: '#888',
               cursor: 'pointer',
-              padding: 4,
+              width: 44,
+              height: 44,
               display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               flexShrink: 0,
+              marginRight: -8,
             }}
           >
             <X size={22} />
