@@ -21,7 +21,7 @@ import OrderCheckout from '../components/order/OrderCheckout'
 import OrderUpsell, { computeUpsellMissing } from '../components/order/OrderUpsell'
 import { getOpenStatus, BusinessHourRow, OpenStatus } from '../utils/businessHours'
 import { useAuth } from '../context/AuthContext'
-import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus } from 'lucide-react'
+import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus, Moon } from 'lucide-react'
 
 function OrderContent() {
   const cart = useCart()
@@ -194,7 +194,7 @@ function OrderContent() {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: 18,
           }}>
-            <span style={{ color: 'var(--gold)', fontSize: 26 }}>🌙</span>
+            <Moon size={26} color="var(--gold)" />
           </div>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--white)', letterSpacing: 2, margin: '0 0 10px' }}>
             We're closed right now

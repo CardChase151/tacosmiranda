@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Check, Trash2 } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem, MenuCategory } from '../types'
+import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
 
 interface Props {
   item: MenuItem
@@ -34,7 +35,14 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   }
 
   const handleDelete = async () => {
-    await supabase.from('menu_items').delete().eq('id', item.id)
+    const result = await deleteOrArchiveMenuItem(item.id)
+    if (result.kind === 'error') {
+      alert(`Couldn't delete ${item.name}: ${result.message}`)
+      return
+    }
+    if (result.kind === 'archived') {
+      alert(`${item.name} has ${result.orderCount} past order${result.orderCount === 1 ? '' : 's'}, so it was hidden (86'd) instead of deleted to keep receipts intact.`)
+    }
     onUpdate()
     onClose()
   }

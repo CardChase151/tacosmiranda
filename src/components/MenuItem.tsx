@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Pencil, Trash2, EyeOff, Eye } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem as MenuItemType, MenuCategory } from '../types'
+import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
 import EditItemModal from './EditItemModal'
 
 interface Props {
@@ -19,7 +20,15 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
   const is86 = !!item.is_86
 
   const handleDelete = async () => {
-    await supabase.from('menu_items').delete().eq('id', item.id)
+    const result = await deleteOrArchiveMenuItem(item.id)
+    if (result.kind === 'error') {
+      alert(`Couldn't delete ${item.name}: ${result.message}`)
+      return
+    }
+    if (result.kind === 'archived') {
+      alert(`${item.name} has ${result.orderCount} past order${result.orderCount === 1 ? '' : 's'}, so it was hidden (86'd) instead of deleted to keep receipts intact.`)
+    }
+    setConfirmDelete(false)
     onUpdate()
   }
 

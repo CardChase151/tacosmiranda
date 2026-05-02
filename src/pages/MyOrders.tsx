@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
-import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp, Check } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react'
 
 interface OrderItemMod {
   modifier_name: string
@@ -323,8 +323,8 @@ export default function MyOrders() {
           Times above are estimated only — we don't track or update them in real time. Please call us if anything changes.
         </p>
 
-        <p style={{ color: 'var(--gray)', fontSize: 11, margin: '12px 0 0', lineHeight: 1.5 }}>
-          📸 Tip: screenshot this page for your records.
+        <p style={{ color: 'var(--gray)', fontSize: 11, margin: '12px 0 0', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Camera size={12} /> Tip: screenshot this page for your records.
         </p>
       </div>
     )
