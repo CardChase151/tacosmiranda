@@ -508,7 +508,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                     fontSize: 11,
                     fontWeight: 600,
                     letterSpacing: 1,
-                    textTransform: 'uppercase',
+                    textTransform: 'capitalize',
                     marginBottom: 8,
                   }}>
                     {category}

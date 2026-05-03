@@ -14,6 +14,7 @@ import OrderOnline from './pages/OrderOnline'
 import MyOrders from './pages/MyOrders'
 import AdminBilling from './pages/AdminBilling'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminMenuData from './pages/AdminMenuData'
 import './App.css'
 
 function AppContent() {
@@ -37,6 +38,7 @@ function AppContent() {
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/admin/billing" element={<AdminBilling />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/menu-data" element={<AdminMenuData />} />
         </Routes>
       </main>
       {!chromeless && !isOrderPage && <Footer />}

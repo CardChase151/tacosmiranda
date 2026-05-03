@@ -41,6 +41,7 @@ export interface Modifier {
   name: string
   upcharge: number
   sort_order: number
+  is_86?: boolean
 }
 
 export interface MenuItemModifierGroup {
@@ -64,7 +65,16 @@ export interface Ingredient {
   id: string
   name: string
   category: string
+  category_id?: string | null
   sort_order: number
+  is_86?: boolean
+}
+
+export interface IngredientCategory {
+  id: string
+  name: string
+  sort_order: number
+  is_86?: boolean
 }
 
 export interface MenuItemIngredient {

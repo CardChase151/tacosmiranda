@@ -120,6 +120,14 @@ export default function Header({ onAdminClick }: HeaderProps) {
               >
                 <BarChart3 size={14} /> Dashboard
               </a>
+              <a
+                href="/admin/menu-data"
+                style={{ ...navTextStyle, color: '#fbbf24', textDecoration: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                Menu Data
+              </a>
             </>
           )}
           {isOwner && (
