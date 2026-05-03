@@ -145,7 +145,7 @@ function IngredientRow({ ing, categories, reload }: { ing: Ingredient; categorie
   }
 
   const remove = async () => {
-    if (!confirm(`Delete ${ing.name}?`)) return
+    if (!window.confirm(`Delete ${ing.name}?`)) return
     const result = await safeDeleteOrArchive({
       table: 'ingredients', id: ing.id,
       refTable: 'order_item_ingredients', refColumn: 'ingredient_id',
@@ -250,7 +250,7 @@ function CategoryRow({ cat, count, onMove, reload }: { cat: IngredientCategory; 
 
   const remove = async () => {
     if (count > 0) { alert(`${cat.name} has ${count} ingredient${count === 1 ? '' : 's'}. Reassign or delete them first.`); return }
-    if (!confirm(`Delete category ${cat.name}?`)) return
+    if (!window.confirm(`Delete category ${cat.name}?`)) return
     const { error } = await supabase.from('ingredient_categories').delete().eq('id', cat.id)
     if (error) { alert(error.message); return }
     reload()
@@ -339,7 +339,7 @@ function ModifierGroupRow({ group, modifiers, reload }: { group: ModifierGroup; 
 
   const removeGroup = async () => {
     if (modifiers.length > 0) { alert(`${group.display_name} has ${modifiers.length} choice${modifiers.length === 1 ? '' : 's'}. Delete or reassign them first.`); return }
-    if (!confirm(`Delete modifier group ${group.display_name}?`)) return
+    if (!window.confirm(`Delete modifier group ${group.display_name}?`)) return
     const { error } = await supabase.from('modifier_groups').delete().eq('id', group.id)
     if (error) { alert(error.message); return }
     reload()
@@ -417,7 +417,7 @@ function ModifierRow({ mod, reload }: { mod: Modifier; reload: () => void }) {
   }
 
   const remove = async () => {
-    if (!confirm(`Delete ${mod.name}?`)) return
+    if (!window.confirm(`Delete ${mod.name}?`)) return
     const result = await safeDeleteOrArchive({
       table: 'modifiers', id: mod.id,
       refTable: 'order_item_modifiers', refColumn: 'modifier_id',
