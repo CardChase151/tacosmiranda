@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Trash2, Plus, Eye } from 'lucide-react'
+import { X, Check, Trash2, Plus, Eye, Pencil } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem, MenuCategory, Ingredient, IngredientCategory, MenuItemIngredient, ModifierGroup, Modifier, MenuItemModifierGroup } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
@@ -201,7 +201,7 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
       <div
         style={{
           background: 'var(--dark-card)', border: '1px solid var(--border)',
-          borderRadius: 16, padding: 28, width: 560, maxWidth: '95vw',
+          borderRadius: 16, padding: 28, width: 'min(900px, 95vw)',
           maxHeight: '90vh', overflowY: 'auto', animation: 'fadeInUp 0.3s ease',
         }}
         onClick={e => e.stopPropagation()}
@@ -280,14 +280,16 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
             const ing = allIngredients.find(i => i.id === link.ingredient_id)
             if (!ing) return null
             return (
-              <div key={link.id} style={linkRow}>
-                <span style={{ flex: 1, color: 'var(--gold)', fontSize: 13 }}>{ing.name}</span>
-                <ToggleChip on={link.is_default} onClick={() => updateIngredientLink(link.id, { is_default: !link.is_default })} label="Default On" />
-                <ToggleChip on={link.is_removable} onClick={() => updateIngredientLink(link.id, { is_removable: !link.is_removable })} label="Removable" />
-                <ToggleChip on={link.can_add_extra} onClick={() => updateIngredientLink(link.id, { can_add_extra: !link.can_add_extra })} label="Extra OK" />
-                <input type="number" step="0.01" value={link.extra_charge} onChange={e => updateIngredientLink(link.id, { extra_charge: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 70, padding: '4px 8px', fontSize: 12 }} title="Extra charge per add-on" placeholder="$" />
-                <button onClick={() => removeIngredientLink(link.id)} style={miniBtn}><Trash2 size={12} /></button>
-              </div>
+              <LinkedIngredientRow
+                key={link.id}
+                link={link}
+                ing={ing}
+                ingredientCategories={ingredientCategories}
+                onUpdateLink={updateIngredientLink}
+                onRemoveLink={removeIngredientLink}
+                onIngredientChanged={(updated) => setAllIngredients(prev => prev.map(i => i.id === updated.id ? updated : i))}
+                inputStyle={inputStyle}
+              />
             )
           })}
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
@@ -440,6 +442,88 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+function LinkedIngredientRow({
+  link, ing, ingredientCategories,
+  onUpdateLink, onRemoveLink, onIngredientChanged, inputStyle,
+}: {
+  link: MenuItemIngredient
+  ing: Ingredient
+  ingredientCategories: IngredientCategory[]
+  onUpdateLink: (id: string, patch: Partial<MenuItemIngredient>) => void
+  onRemoveLink: (id: string) => void
+  onIngredientChanged: (ing: Ingredient) => void
+  inputStyle: React.CSSProperties
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(ing.name)
+  const [categoryId, setCategoryId] = useState(ing.category_id || '')
+
+  const saveIngredient = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const cat = ingredientCategories.find(c => c.id === categoryId)
+    const { data, error } = await supabase
+      .from('ingredients')
+      .update({ name: trimmed, category: cat?.name || '', category_id: categoryId || null })
+      .eq('id', ing.id)
+      .select().single()
+    if (error || !data) { alert(error?.message || 'Could not save'); return }
+    onIngredientChanged(data as Ingredient)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div style={{ ...linkRow, flexWrap: 'wrap' }}>
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && saveIngredient()}
+          style={{ ...inputStyle, flex: 1, minWidth: 120, padding: '4px 8px', fontSize: 13 }}
+        />
+        <select
+          value={categoryId}
+          onChange={e => setCategoryId(e.target.value)}
+          style={{ ...inputStyle, width: 130, padding: '4px 8px', fontSize: 12 }}
+        >
+          {ingredientCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <button onClick={saveIngredient} style={{ background: '#34d399', color: '#000', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+        <button onClick={() => { setEditing(false); setName(ing.name); setCategoryId(ing.category_id || '') }} style={{ background: 'transparent', color: 'var(--gray)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={linkRow}>
+      <button
+        onClick={() => setEditing(true)}
+        style={{ background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer', padding: 2, fontSize: 12, opacity: 0.7 }}
+        title="Edit name + category"
+      >
+        <Pencil size={12} />
+      </button>
+      <span style={{ flex: 1, color: 'var(--gold)', fontSize: 13 }}>
+        {ing.name} <span style={{ color: 'var(--gray)', fontSize: 11, textTransform: 'capitalize' }}>· {ing.category}</span>
+      </span>
+      <ToggleChip on={link.is_default} onClick={() => onUpdateLink(link.id, { is_default: !link.is_default })} label="Default On" />
+      <ToggleChip on={link.is_removable} onClick={() => onUpdateLink(link.id, { is_removable: !link.is_removable })} label="Removable" />
+      <ToggleChip on={link.can_add_extra} onClick={() => onUpdateLink(link.id, { can_add_extra: !link.can_add_extra })} label="Extra OK" />
+      <input
+        type="number"
+        step="0.01"
+        value={link.extra_charge}
+        onChange={e => onUpdateLink(link.id, { extra_charge: parseFloat(e.target.value) || 0 })}
+        style={{ ...inputStyle, width: 70, padding: '4px 8px', fontSize: 12 }}
+        title="Extra charge per add-on"
+        placeholder="$"
+      />
+      <button onClick={() => onRemoveLink(link.id)} style={miniBtn} title="Remove from this item"><Trash2 size={12} /></button>
     </div>
   )
 }
