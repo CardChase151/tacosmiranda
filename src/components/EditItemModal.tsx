@@ -178,8 +178,8 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Description / Ingredients</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Ingredients, toppings, etc." />
+          <label style={labelStyle}>Description for Menu</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder={`"Tacos Miranda's Favorite" or "Your choice of..."`} />
         </div>
 
         <div style={{ marginBottom: 24 }}>
