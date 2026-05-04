@@ -110,18 +110,33 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
   const requiredGroups = modifierGroups.filter(mg => mg.link.is_required)
   const optionalGroups = modifierGroups.filter(mg => !mg.link.is_required)
 
-  // Group ingredients by category
-  const ingredientsByCategory = useMemo(() => {
+  // Split into "default" (pre-included) and "add-on" (off by default, customer
+  // opts in). Ingredients that are neither default nor addable-as-extra never
+  // surface to the customer.
+  const defaultsByCategory = useMemo(() => {
     const grouped: Record<string, Array<{ ingredient: Ingredient; link: MenuItemIngredient }>> = {}
-    itemIngredients.forEach(ii => {
+    itemIngredients.filter(ii => ii.link.is_default).forEach(ii => {
       const cat = ii.ingredient.category || 'Other'
       if (!grouped[cat]) grouped[cat] = []
       grouped[cat].push(ii)
     })
-    // Sort within each category by sort_order
     Object.values(grouped).forEach(arr => arr.sort((a, b) => a.link.sort_order - b.link.sort_order))
     return grouped
   }, [itemIngredients])
+
+  const addonsByCategory = useMemo(() => {
+    const grouped: Record<string, Array<{ ingredient: Ingredient; link: MenuItemIngredient }>> = {}
+    itemIngredients.filter(ii => !ii.link.is_default && ii.link.can_add_extra).forEach(ii => {
+      const cat = ii.ingredient.category || 'Other'
+      if (!grouped[cat]) grouped[cat] = []
+      grouped[cat].push(ii)
+    })
+    Object.values(grouped).forEach(arr => arr.sort((a, b) => a.link.sort_order - b.link.sort_order))
+    return grouped
+  }, [itemIngredients])
+
+  const hasDefaults = Object.keys(defaultsByCategory).length > 0
+  const hasAddons = Object.keys(addonsByCategory).length > 0
 
   const handleRequiredModifier = (groupId: string, modifierId: string) => {
     setSelectedModifiers(prev => ({ ...prev, [groupId]: [modifierId] }))
@@ -488,7 +503,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
           )}
 
           {/* Section 3: Included Ingredients */}
-          {itemIngredients.length > 0 && (
+          {hasDefaults && (
             <div style={{ marginBottom: 24 }}>
               <div style={{
                 color: '#C8A84E',
@@ -501,7 +516,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                 Included Ingredients
               </div>
 
-              {Object.entries(ingredientsByCategory).map(([category, items]) => (
+              {Object.entries(defaultsByCategory).map(([category, items]) => (
                 <div key={category} style={{ marginBottom: 16 }}>
                   <div style={{
                     color: '#888',
@@ -596,6 +611,89 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                             >
                               Extra +${link.extra_charge.toFixed(2)}
                             </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Section 3b: Optional Add-ons (linked but not default) */}
+          {hasAddons && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                color: '#C8A84E',
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                marginBottom: 14,
+                textTransform: 'uppercase',
+              }}>
+                Optional Add-ons
+              </div>
+
+              {Object.entries(addonsByCategory).map(([category, items]) => (
+                <div key={category} style={{ marginBottom: 16 }}>
+                  <div style={{
+                    color: '#888',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 1,
+                    textTransform: 'capitalize',
+                    marginBottom: 8,
+                  }}>
+                    {category}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {items.map(({ ingredient, link }) => {
+                      const isAdded = !!extraIngredients[ingredient.id]
+                      return (
+                        <div
+                          key={ingredient.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            background: '#222',
+                            borderRadius: 8,
+                            opacity: isAdded ? 1 : 0.7,
+                            transition: 'opacity 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button
+                              onClick={() => toggleExtraIngredient(ingredient.id)}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 4,
+                                border: isAdded ? '2px solid #C8A84E' : '2px solid #555',
+                                background: isAdded ? '#C8A84E' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                padding: 0,
+                              }}
+                            >
+                              {isAdded && <Check size={12} color="#000" strokeWidth={3} />}
+                            </button>
+                            <span style={{ color: '#fff', fontSize: 14 }}>{ingredient.name}</span>
+                          </div>
+                          {link.extra_charge > 0 && (
+                            <span style={{
+                              color: isAdded ? '#C8A84E' : '#888',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}>
+                              +${link.extra_charge.toFixed(2)}
+                            </span>
                           )}
                         </div>
                       )
