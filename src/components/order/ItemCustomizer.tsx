@@ -135,8 +135,18 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
     return grouped
   }, [itemIngredients])
 
+  // Defaults that the customer can add an EXTRA of (e.g. "extra cheese on top of
+  // the cheese already included"). Surfaces in its own section so admins can
+  // think of "extra OK" as a distinct affordance from the included list.
+  const extrasOfDefaults = useMemo(() => {
+    return itemIngredients
+      .filter(ii => ii.link.is_default && ii.link.can_add_extra)
+      .sort((a, b) => a.link.sort_order - b.link.sort_order)
+  }, [itemIngredients])
+
   const hasDefaults = Object.keys(defaultsByCategory).length > 0
   const hasAddons = Object.keys(addonsByCategory).length > 0
+  const hasExtrasOfDefaults = extrasOfDefaults.length > 0
 
   const handleRequiredModifier = (groupId: string, modifierId: string) => {
     setSelectedModifiers(prev => ({ ...prev, [groupId]: [modifierId] }))
@@ -531,7 +541,6 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {items.map(({ ingredient, link }) => {
                       const isRemoved = !!removedIngredients[ingredient.id]
-                      const isExtra = !!extraIngredients[ingredient.id]
 
                       return (
                         <div
@@ -593,25 +602,7 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                             </span>
                           </div>
 
-                          {/* Extra toggle */}
-                          {link.can_add_extra && link.extra_charge > 0 && !isRemoved && (
-                            <button
-                              onClick={() => toggleExtraIngredient(ingredient.id)}
-                              style={{
-                                padding: '3px 10px',
-                                borderRadius: 12,
-                                border: isExtra ? '1px solid #C8A84E' : '1px solid #555',
-                                background: isExtra ? 'rgba(200,168,78,0.2)' : 'transparent',
-                                color: isExtra ? '#C8A84E' : '#888',
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              Extra +${link.extra_charge.toFixed(2)}
-                            </button>
-                          )}
+                          {/* Extras live in their own section below — don't show inline chip here */}
                         </div>
                       )
                     })}
@@ -701,6 +692,74 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Section 3c: Make it Extra — defaults that admin marked can_add_extra=true */}
+          {hasExtrasOfDefaults && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                color: '#C8A84E',
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                marginBottom: 14,
+                textTransform: 'uppercase',
+              }}>
+                Make it Extra
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {extrasOfDefaults.map(({ ingredient, link }) => {
+                  const isExtra = !!extraIngredients[ingredient.id]
+                  return (
+                    <div
+                      key={ingredient.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: '#222',
+                        borderRadius: 8,
+                        opacity: isExtra ? 1 : 0.7,
+                        transition: 'opacity 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                          onClick={() => toggleExtraIngredient(ingredient.id)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 4,
+                            border: isExtra ? '2px solid #C8A84E' : '2px solid #555',
+                            background: isExtra ? '#C8A84E' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            padding: 0,
+                          }}
+                        >
+                          {isExtra && <Check size={12} color="#000" strokeWidth={3} />}
+                        </button>
+                        <span style={{ color: '#fff', fontSize: 14 }}>Extra {ingredient.name}</span>
+                      </div>
+                      {link.extra_charge > 0 && (
+                        <span style={{
+                          color: isExtra ? '#C8A84E' : '#888',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          +${link.extra_charge.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 

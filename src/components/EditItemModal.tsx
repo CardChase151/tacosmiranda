@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Check, Trash2, Plus, Eye } from 'lucide-react'
 import { supabase } from '../config/supabase'
-import { MenuItem, MenuCategory, Ingredient, MenuItemIngredient, ModifierGroup, Modifier, MenuItemModifierGroup } from '../types'
+import { MenuItem, MenuCategory, Ingredient, IngredientCategory, MenuItemIngredient, ModifierGroup, Modifier, MenuItemModifierGroup } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
 import ItemCustomizer from './order/ItemCustomizer'
 import { CartProvider } from '../context/CartContext'
@@ -24,27 +24,40 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   // Linked data
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
   const [linkedIngs, setLinkedIngs] = useState<MenuItemIngredient[]>([])
+  const [ingredientCategories, setIngredientCategories] = useState<IngredientCategory[]>([])
   const [allModGroups, setAllModGroups] = useState<ModifierGroup[]>([])
   const [allModifiers, setAllModifiers] = useState<Modifier[]>([])
   const [linkedMgs, setLinkedMgs] = useState<MenuItemModifierGroup[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
 
+  // Quick-add ingredient state
+  const [newIngName, setNewIngName] = useState('')
+  const [newIngCategoryId, setNewIngCategoryId] = useState<string>('')
+  const [newCategoryMode, setNewCategoryMode] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+
   useEffect(() => {
     (async () => {
-      const [iRes, miiRes, mgRes, modRes, mimgRes] = await Promise.all([
+      const [iRes, miiRes, icRes, mgRes, modRes, mimgRes] = await Promise.all([
         supabase.from('ingredients').select('*').eq('is_86', false).order('sort_order'),
         supabase.from('menu_item_ingredients').select('*').eq('menu_item_id', item.id).order('sort_order'),
+        supabase.from('ingredient_categories').select('*').eq('is_86', false).order('sort_order'),
         supabase.from('modifier_groups').select('*').order('sort_order'),
         supabase.from('modifiers').select('*').eq('is_86', false).order('sort_order'),
         supabase.from('menu_item_modifier_groups').select('*').eq('menu_item_id', item.id).order('sort_order'),
       ])
       if (iRes.data) setAllIngredients(iRes.data as Ingredient[])
       if (miiRes.data) setLinkedIngs(miiRes.data as MenuItemIngredient[])
+      if (icRes.data) {
+        const cats = icRes.data as IngredientCategory[]
+        setIngredientCategories(cats)
+        if (cats.length > 0 && !newIngCategoryId) setNewIngCategoryId(cats[0].id)
+      }
       if (mgRes.data) setAllModGroups(mgRes.data as ModifierGroup[])
       if (modRes.data) setAllModifiers(modRes.data as Modifier[])
       if (mimgRes.data) setLinkedMgs(mimgRes.data as MenuItemModifierGroup[])
     })()
-  }, [item.id])
+  }, [item.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentCategory = categories.find(c => c.id === categoryId)
   const mealType = currentCategory?.meal_type || 'lunch_dinner'
@@ -88,6 +101,53 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
     await supabase.from('menu_item_ingredients').delete().eq('id', linkId)
   }
 
+  // Quick-add by typing the name. Reuses existing ingredient if name matches
+  // (case-insensitive); otherwise creates a new one in the chosen category.
+  const quickAddIngredient = async () => {
+    const trimmed = newIngName.trim()
+    if (!trimmed || !newIngCategoryId) return
+
+    const existing = allIngredients.find(i => i.name.toLowerCase() === trimmed.toLowerCase())
+    if (existing) {
+      if (linkedIngs.some(l => l.ingredient_id === existing.id)) {
+        alert(`${existing.name} is already on this item.`)
+        return
+      }
+      await addIngredientLink(existing.id)
+      setNewIngName('')
+      return
+    }
+
+    // Create new ingredient
+    const cat = ingredientCategories.find(c => c.id === newIngCategoryId)
+    const maxOrder = Math.max(0, ...allIngredients.map(i => i.sort_order)) + 10
+    const { data: newIng, error } = await supabase.from('ingredients').insert({
+      name: trimmed,
+      category: cat?.name || '',
+      category_id: newIngCategoryId,
+      sort_order: maxOrder,
+    }).select().single()
+    if (error || !newIng) { alert(error?.message || 'Could not create ingredient'); return }
+    setAllIngredients(prev => [...prev, newIng as Ingredient])
+    await addIngredientLink((newIng as Ingredient).id)
+    setNewIngName('')
+  }
+
+  const createNewCategory = async () => {
+    const trimmed = newCategoryName.trim()
+    if (!trimmed) return
+    const maxOrder = Math.max(0, ...ingredientCategories.map(c => c.sort_order)) + 10
+    const { data, error } = await supabase.from('ingredient_categories').insert({
+      name: trimmed, sort_order: maxOrder,
+    }).select().single()
+    if (error || !data) { alert(error?.message || 'Could not create category'); return }
+    const newCat = data as IngredientCategory
+    setIngredientCategories(prev => [...prev, newCat])
+    setNewIngCategoryId(newCat.id)
+    setNewCategoryName('')
+    setNewCategoryMode(false)
+  }
+
   const bulkSetIngredientFlag = async (field: 'is_removable' | 'can_add_extra' | 'is_default', value: boolean) => {
     setLinkedIngs(prev => prev.map(l => ({ ...l, [field]: value })))
     await supabase.from('menu_item_ingredients').update({ [field]: value }).eq('menu_item_id', item.id)
@@ -126,8 +186,6 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   const breakfastCategories = categories.filter(c => c.meal_type === 'breakfast')
   const lunchCategories = categories.filter(c => c.meal_type === 'lunch_dinner')
 
-  const linkedIngIds = new Set(linkedIngs.map(l => l.ingredient_id))
-  const unlinkedIngs = allIngredients.filter(i => !linkedIngIds.has(i.id))
   const linkedMgIds = new Set(linkedMgs.map(l => l.modifier_group_id))
   const unlinkedMgs = allModGroups.filter(g => !linkedMgIds.has(g.id))
 
@@ -232,12 +290,55 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
               </div>
             )
           })}
-          {unlinkedIngs.length > 0 && (
-            <select onChange={e => { if (e.target.value) { addIngredientLink(e.target.value); e.target.value = '' } }} style={{ ...inputStyle, marginTop: 8, fontSize: 12, padding: '6px 10px' }} value="">
-              <option value="">+ Add ingredient…</option>
-              {unlinkedIngs.map(i => <option key={i.id} value={i.id}>{i.name} ({i.category})</option>)}
-            </select>
-          )}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+            <p style={{ fontSize: 10, color: 'var(--gray)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 6 }}>Add ingredient</p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={newIngName}
+                onChange={e => setNewIngName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && quickAddIngredient()}
+                placeholder="Type a name (e.g. Cilantro)"
+                style={{ ...inputStyle, flex: '1 1 180px', padding: '8px 12px', fontSize: 13 }}
+              />
+              {newCategoryMode ? (
+                <>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && createNewCategory()}
+                    placeholder="New category…"
+                    autoFocus
+                    style={{ ...inputStyle, width: 130, padding: '8px 12px', fontSize: 13 }}
+                  />
+                  <button onClick={createNewCategory} style={{ background: '#34d399', color: '#000', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                  <button onClick={() => { setNewCategoryMode(false); setNewCategoryName('') }} style={{ background: 'transparent', color: 'var(--gray)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <select
+                    value={newIngCategoryId}
+                    onChange={e => {
+                      if (e.target.value === '__new__') { setNewCategoryMode(true) }
+                      else setNewIngCategoryId(e.target.value)
+                    }}
+                    style={{ ...inputStyle, width: 130, padding: '8px 10px', fontSize: 12 }}
+                  >
+                    {ingredientCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <option value="__new__">+ New category…</option>
+                  </select>
+                  <button
+                    onClick={quickAddIngredient}
+                    disabled={!newIngName.trim()}
+                    style={{ background: 'var(--gold)', color: 'var(--black)', border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, opacity: !newIngName.trim() ? 0.5 : 1 }}
+                  >
+                    <Plus size={13} /> Add
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ===== Modifier Groups ===== */}
