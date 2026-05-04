@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Trash2, Plus } from 'lucide-react'
+import { X, Check, Trash2, Plus, Eye } from 'lucide-react'
 import { supabase } from '../config/supabase'
-import { MenuItem, MenuCategory, Ingredient, MenuItemIngredient, ModifierGroup, MenuItemModifierGroup } from '../types'
+import { MenuItem, MenuCategory, Ingredient, MenuItemIngredient, ModifierGroup, Modifier, MenuItemModifierGroup } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
+import ItemCustomizer from './order/ItemCustomizer'
+import { CartProvider } from '../context/CartContext'
 
 interface Props {
   item: MenuItem
@@ -23,19 +25,23 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
   const [linkedIngs, setLinkedIngs] = useState<MenuItemIngredient[]>([])
   const [allModGroups, setAllModGroups] = useState<ModifierGroup[]>([])
+  const [allModifiers, setAllModifiers] = useState<Modifier[]>([])
   const [linkedMgs, setLinkedMgs] = useState<MenuItemModifierGroup[]>([])
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     (async () => {
-      const [iRes, miiRes, mgRes, mimgRes] = await Promise.all([
-        supabase.from('ingredients').select('*').order('sort_order'),
+      const [iRes, miiRes, mgRes, modRes, mimgRes] = await Promise.all([
+        supabase.from('ingredients').select('*').eq('is_86', false).order('sort_order'),
         supabase.from('menu_item_ingredients').select('*').eq('menu_item_id', item.id).order('sort_order'),
         supabase.from('modifier_groups').select('*').order('sort_order'),
+        supabase.from('modifiers').select('*').eq('is_86', false).order('sort_order'),
         supabase.from('menu_item_modifier_groups').select('*').eq('menu_item_id', item.id).order('sort_order'),
       ])
       if (iRes.data) setAllIngredients(iRes.data as Ingredient[])
       if (miiRes.data) setLinkedIngs(miiRes.data as MenuItemIngredient[])
       if (mgRes.data) setAllModGroups(mgRes.data as ModifierGroup[])
+      if (modRes.data) setAllModifiers(modRes.data as Modifier[])
       if (mimgRes.data) setLinkedMgs(mimgRes.data as MenuItemModifierGroup[])
     })()
   }, [item.id])
@@ -275,11 +281,64 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
               <Trash2 size={14} /> Delete
             </button>
           )}
-          <button onClick={handleSave} disabled={saving || !name || !price} style={{ background: 'var(--gold)', color: 'var(--black)', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saving || !name || !price ? 0.5 : 1 }}>
-            <Check size={16} /> {saving ? 'Saving...' : 'Save'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setPreviewOpen(true)} style={{ background: 'transparent', color: '#60a5fa', border: '1px solid #60a5fa', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Eye size={14} /> Preview
+            </button>
+            <button onClick={handleSave} disabled={saving || !name || !price} style={{ background: 'var(--gold)', color: 'var(--black)', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saving || !name || !price ? 0.5 : 1 }}>
+              <Check size={16} /> {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {previewOpen && (() => {
+        // Synthesize a customer-facing item from staged + linked state.
+        const stagedItem: MenuItem = {
+          ...item,
+          name, description,
+          price: parseFloat(price) || 0,
+          category_id: categoryId,
+        }
+        const customizerModifierGroups = linkedMgs
+          .map(link => {
+            const group = allModGroups.find(g => g.id === link.modifier_group_id)
+            if (!group) return null
+            return {
+              group,
+              modifiers: allModifiers.filter(m => m.modifier_group_id === group.id),
+              link,
+            }
+          })
+          .filter((x): x is { group: ModifierGroup; modifiers: Modifier[]; link: MenuItemModifierGroup } => x !== null)
+
+        const customizerIngredients = linkedIngs
+          .map(link => {
+            const ingredient = allIngredients.find(i => i.id === link.ingredient_id)
+            if (!ingredient) return null
+            return { ingredient, link }
+          })
+          .filter((x): x is { ingredient: Ingredient; link: MenuItemIngredient } => x !== null)
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 2000 }} onClick={e => e.stopPropagation()}>
+            <div style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 2001, background: 'rgba(96,165,250,0.95)', color: '#000', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+              PREVIEW — staged changes shown, not saved
+            </div>
+            <CartProvider>
+              <ItemCustomizer
+                item={stagedItem}
+                modifierGroups={customizerModifierGroups}
+                itemIngredients={customizerIngredients}
+                onAdd={() => setPreviewOpen(false)}
+                onClose={() => setPreviewOpen(false)}
+                closeOnAdd
+                closeButtonLabel="Close Preview"
+              />
+            </CartProvider>
+          </div>
+        )
+      })()}
     </div>
   )
 }
