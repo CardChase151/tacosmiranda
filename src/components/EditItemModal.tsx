@@ -66,7 +66,7 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
     const max = Math.max(0, ...linkedIngs.map(l => l.sort_order)) + 10
     const { data } = await supabase.from('menu_item_ingredients').insert({
       menu_item_id: item.id, ingredient_id: ingredientId,
-      is_default: true, is_removable: true, can_add_extra: false,
+      is_default: true, is_removable: true, can_add_extra: true,
       extra_charge: 0, sort_order: max,
     }).select().single()
     if (data) setLinkedIngs([...linkedIngs, data as MenuItemIngredient])
@@ -80,6 +80,11 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   const removeIngredientLink = async (linkId: string) => {
     setLinkedIngs(prev => prev.filter(l => l.id !== linkId))
     await supabase.from('menu_item_ingredients').delete().eq('id', linkId)
+  }
+
+  const bulkSetIngredientFlag = async (field: 'is_removable' | 'can_add_extra' | 'is_default', value: boolean) => {
+    setLinkedIngs(prev => prev.map(l => ({ ...l, [field]: value })))
+    await supabase.from('menu_item_ingredients').update({ [field]: value }).eq('menu_item_id', item.id)
   }
 
   // ===== modifier group link CRUD =====
@@ -193,7 +198,19 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
 
         {/* ===== Default Ingredients ===== */}
         <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-          <label style={{ ...labelStyle, marginBottom: 12 }}>Default Ingredients ({linkedIngs.length})</label>
+          <label style={{ ...labelStyle, marginBottom: 6 }}>Ingredients ({linkedIngs.length})</label>
+          <p style={{ color: 'var(--gray)', fontSize: 11, margin: '0 0 10px', lineHeight: 1.4 }}>
+            <strong style={{ color: 'var(--gold)' }}>Default On</strong>: comes with the item by default.
+            {' '}<strong style={{ color: 'var(--gold)' }}>Removable</strong>: customer can untoggle.
+            {' '}<strong style={{ color: 'var(--gold)' }}>Extra OK</strong>: customer can add more (extra charge optional).
+          </p>
+          {linkedIngs.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button onClick={() => bulkSetIngredientFlag('is_removable', true)} style={bulkBtn}>All removable</button>
+              <button onClick={() => bulkSetIngredientFlag('can_add_extra', true)} style={bulkBtn}>All extra OK</button>
+              <button onClick={() => bulkSetIngredientFlag('is_default', true)} style={bulkBtn}>All default on</button>
+            </div>
+          )}
           {linkedIngs.length === 0 && <p style={{ color: 'var(--gray)', fontSize: 12, marginBottom: 10 }}>No ingredients linked.</p>}
           {linkedIngs.map(link => {
             const ing = allIngredients.find(i => i.id === link.ingredient_id)
@@ -201,10 +218,10 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
             return (
               <div key={link.id} style={linkRow}>
                 <span style={{ flex: 1, color: 'var(--gold)', fontSize: 13 }}>{ing.name}</span>
-                <ToggleChip on={link.is_default} onClick={() => updateIngredientLink(link.id, { is_default: !link.is_default })} label="default" />
-                <ToggleChip on={link.is_removable} onClick={() => updateIngredientLink(link.id, { is_removable: !link.is_removable })} label="rmv" />
-                <ToggleChip on={link.can_add_extra} onClick={() => updateIngredientLink(link.id, { can_add_extra: !link.can_add_extra })} label="extra" />
-                <input type="number" step="0.01" value={link.extra_charge} onChange={e => updateIngredientLink(link.id, { extra_charge: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 70, padding: '4px 8px', fontSize: 12 }} title="Extra charge" />
+                <ToggleChip on={link.is_default} onClick={() => updateIngredientLink(link.id, { is_default: !link.is_default })} label="Default On" />
+                <ToggleChip on={link.is_removable} onClick={() => updateIngredientLink(link.id, { is_removable: !link.is_removable })} label="Removable" />
+                <ToggleChip on={link.can_add_extra} onClick={() => updateIngredientLink(link.id, { can_add_extra: !link.can_add_extra })} label="Extra OK" />
+                <input type="number" step="0.01" value={link.extra_charge} onChange={e => updateIngredientLink(link.id, { extra_charge: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 70, padding: '4px 8px', fontSize: 12 }} title="Extra charge per add-on" placeholder="$" />
                 <button onClick={() => removeIngredientLink(link.id)} style={miniBtn}><Trash2 size={12} /></button>
               </div>
             )
@@ -227,7 +244,7 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
             return (
               <div key={link.id} style={linkRow}>
                 <span style={{ flex: 1, color: 'var(--gold)', fontSize: 13 }}>{mg.display_name} <span style={{ color: 'var(--gray)', fontSize: 11 }}>({mg.name})</span></span>
-                <ToggleChip on={link.is_required} onClick={() => updateModGroupLink(link.id, { is_required: !link.is_required })} label="required" />
+                <ToggleChip on={link.is_required} onClick={() => updateModGroupLink(link.id, { is_required: !link.is_required })} label="Required" />
                 <input type="number" min={0} value={link.min_selections} onChange={e => updateModGroupLink(link.id, { min_selections: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, padding: '4px 8px', fontSize: 12 }} title="Min" />
                 <input type="number" min={1} value={link.max_selections} onChange={e => updateModGroupLink(link.id, { max_selections: parseInt(e.target.value) || 1 })} style={{ ...inputStyle, width: 50, padding: '4px 8px', fontSize: 12 }} title="Max" />
                 <button onClick={() => removeModGroupLink(link.id)} style={miniBtn}><Trash2 size={12} /></button>
@@ -285,4 +302,9 @@ const linkRow: React.CSSProperties = {
 }
 const miniBtn: React.CSSProperties = {
   background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2,
+}
+const bulkBtn: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+  border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)',
+  color: 'var(--gold)', cursor: 'pointer',
 }
