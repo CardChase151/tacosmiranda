@@ -6,25 +6,150 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Authentic Mexican food in Huntington Beach. Tacos, burritos, tortas, quesabirria and more. Open 7 days. Call (657) 845-4011." />
+    <meta name="description" content="Authentic Mexican food in Huntington Beach. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM. Call (657) 845-4011 or order online." />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://tacosmiranda.com/" />
 
+    <!-- Open Graph -->
     <meta property="og:type" content="restaurant" />
+    <meta property="og:url" content="https://tacosmiranda.com/" />
     <meta property="og:title" content="Tacos Miranda | Authentic Mexican Food | Huntington Beach, CA" />
     <meta property="og:description" content="Authentic Mexican food. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM." />
-    <meta property="og:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta property="og:image" content="https://tacosmiranda.com/og-image.png" />
     <meta property="og:site_name" content="Tacos Miranda" />
+    <meta property="og:locale" content="en_US" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Tacos Miranda | Authentic Mexican Food | Huntington Beach, CA" />
     <meta name="twitter:description" content="Authentic Mexican food. Tacos, burritos, tortas and more. Huntington Beach, CA." />
-    <meta name="twitter:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta name="twitter:image" content="https://tacosmiranda.com/og-image.png" />
+
+    <!-- Geo / local targeting -->
+    <meta name="geo.region" content="US-CA" />
+    <meta name="geo.placename" content="Huntington Beach" />
+    <meta name="geo.position" content="33.6906;-117.9533" />
+    <meta name="ICBM" content="33.6906, -117.9533" />
 
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Tacos Miranda | Authentic Mexican Food | Huntington Beach, CA</title>
+
+    <!-- Restaurant schema (LocalBusiness > FoodEstablishment > Restaurant)
+         Lives in static HTML so every crawler, including those that don't run
+         JS, sees the structured data on first request. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      "@id": "https://tacosmiranda.com/#restaurant",
+      "name": "Tacos Miranda",
+      "image": [
+        "https://tacosmiranda.com/og-image.png",
+        "https://tacosmiranda.com/logo-square.png"
+      ],
+      "logo": "https://tacosmiranda.com/logo-square.png",
+      "url": "https://tacosmiranda.com/",
+      "telephone": "+1-657-845-4011",
+      "priceRange": "$",
+      "servesCuisine": ["Mexican", "Tacos", "Breakfast", "Latin American"],
+      "acceptsReservations": "False",
+      "paymentAccepted": "Cash, Credit Card, Debit Card",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "21582 Brookhurst St",
+        "addressLocality": "Huntington Beach",
+        "addressRegion": "CA",
+        "postalCode": "92646",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 33.6906,
+        "longitude": -117.9533
+      },
+      "areaServed": [
+        { "@type": "City", "name": "Huntington Beach" },
+        { "@type": "City", "name": "Fountain Valley" },
+        { "@type": "City", "name": "Costa Mesa" },
+        { "@type": "City", "name": "Westminster" },
+        { "@type": "City", "name": "Garden Grove" },
+        { "@type": "AdministrativeArea", "name": "Orange County" },
+        { "@type": "State", "name": "California" }
+      ],
+      "openingHoursSpecification": [{
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+        "opens": "07:00",
+        "closes": "21:00"
+      }],
+      "hasMenu": "https://tacosmiranda.com/#menu",
+      "potentialAction": {
+        "@type": "OrderAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://tacosmiranda.com/order",
+          "actionPlatform": [
+            "http://schema.org/DesktopWebPlatform",
+            "http://schema.org/MobileWebPlatform"
+          ]
+        },
+        "deliveryMethod": "http://purl.org/goodrelations/v1#DeliveryModePickUp"
+      }
+    }
+    </script>
+
+    <!-- Organization schema for entity disambiguation -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "@id": "https://tacosmiranda.com/#organization",
+      "name": "Tacos Miranda",
+      "url": "https://tacosmiranda.com/",
+      "logo": "https://tacosmiranda.com/logo-square.png",
+      "sameAs": []
+    }
+    </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-      <noscript><a href="https://appcatalyst.org" rel="external">Built by App Catalyst LLC</a></noscript>
+
+    <!-- Noscript fallback. Crawlers that don't execute JS see this content,
+         which keeps Tacos Miranda discoverable for the address, hours, menu
+         summary, and contact details. -->
+    <noscript>
+      <div style="max-width:780px;margin:0 auto;padding:24px;font-family:system-ui,sans-serif;color:#1a1a1a">
+        <h1>Tacos Miranda</h1>
+        <p><strong>Authentic Mexican food in Huntington Beach, California.</strong> Tacos, burritos, tortas, quesabirria and more. Open seven days a week.</p>
+
+        <h2>Location</h2>
+        <p>
+          21582 Brookhurst St<br>
+          Huntington Beach, CA 92646<br>
+          Phone: <a href="tel:+16578454011">(657) 845-4011</a>
+        </p>
+
+        <h2>Hours</h2>
+        <p>Monday through Sunday, 7:00 AM to 9:00 PM (Pacific Time).</p>
+
+        <h2>What we serve</h2>
+        <ul>
+          <li>Tacos: carne asada, al pastor, carnitas, pollo, lengua, chorizo, fish, shrimp</li>
+          <li>Quesabirria with consommé</li>
+          <li>Burritos and tortas</li>
+          <li>Breakfast: chilaquiles, machaca, huevos rancheros, breakfast burritos</li>
+          <li>Aguas frescas: horchata, jamaica, fruit waters</li>
+        </ul>
+
+        <h2>Order</h2>
+        <p>
+          Order online for pickup at <a href="https://tacosmiranda.com/order">tacosmiranda.com/order</a> or call <a href="tel:+16578454011">(657) 845-4011</a>.
+        </p>
+
+        <p style="margin-top:48px;font-size:12px;color:#666">
+          This page works best with JavaScript enabled. <a href="https://appcatalyst.org" rel="external">Built by App Catalyst LLC</a>.
+        </p>
+      </div>
+    </noscript>
   </body>
 </html>
