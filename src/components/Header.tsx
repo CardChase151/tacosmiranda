@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Receipt } from 'lucide-react'
+import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Receipt, Activity } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 interface HeaderProps {
@@ -119,6 +119,14 @@ export default function Header({ onAdminClick }: HeaderProps) {
                 onMouseLeave={e => e.currentTarget.style.color = '#a78bfa'}
               >
                 <BarChart3 size={14} /> Dashboard
+              </a>
+              <a
+                href="/admin/analytics"
+                style={{ ...navTextStyle, color: '#f472b6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.color = '#f9a8d4'}
+                onMouseLeave={e => e.currentTarget.style.color = '#f472b6'}
+              >
+                <Activity size={14} /> Analytics
               </a>
               <a
                 href="/admin/menu-data"
@@ -305,6 +313,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
                   <DrawerLink href="/order" label="Order Online" icon={<ShoppingBag size={16} />} accentColor="var(--gold)" emphasized />
                   <DrawerLink href="/my-orders" label="My Orders" icon={<Receipt size={16} />} accentColor="#60a5fa" />
                   <DrawerLink href="/admin/dashboard" label="Dashboard" icon={<BarChart3 size={16} />} accentColor="#a78bfa" />
+                  <DrawerLink href="/admin/analytics" label="Analytics" icon={<Activity size={16} />} accentColor="#f472b6" />
                   <DrawerLink href="/admin/print-menu" label="Print Menu" icon={<Printer size={16} />} accentColor="var(--gold)" muted />
                 </>
               )}

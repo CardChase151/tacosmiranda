@@ -15,11 +15,15 @@ import MyOrders from './pages/MyOrders'
 import AdminBilling from './pages/AdminBilling'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminMenuData from './pages/AdminMenuData'
+import AdminAnalytics from './pages/AdminAnalytics'
+import './lib/trackVisit'
+import { usePageViewTracker } from './lib/usePageViewTracker'
 import './App.css'
 
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const location = useLocation()
+  usePageViewTracker()
   const isPrintPage = location.pathname === '/admin/print-menu'
   const isOrderPage = location.pathname === '/order'
   const isScreenPage = location.pathname === '/screen'
@@ -38,6 +42,7 @@ function AppContent() {
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/admin/billing" element={<AdminBilling />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/menu-data" element={<AdminMenuData />} />
         </Routes>
       </main>
