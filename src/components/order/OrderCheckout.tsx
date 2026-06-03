@@ -109,6 +109,18 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
     setSubmitting(true)
 
     try {
+      const { data: siteSettings } = await supabase
+        .from('site_settings')
+        .select('ordering_enabled')
+        .eq('id', 'main')
+        .maybeSingle()
+
+      if (siteSettings && siteSettings.ordering_enabled === false) {
+        setError('Online ordering is paused right now. Please call us at (657) 845-4011 to place your order.')
+        setSubmitting(false)
+        return
+      }
+
       // If Stripe is wired and accepting charges, route through Stripe Checkout.
       // The edge function creates the order (status='awaiting_payment') and returns a Stripe Checkout URL.
       const { data: stripeSettings } = await supabase

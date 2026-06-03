@@ -67,6 +67,19 @@ Deno.serve(async (req) => {
       })
     }
 
+    const { data: siteSettings } = await supabase
+      .from('site_settings')
+      .select('ordering_enabled')
+      .eq('id', 'main')
+      .maybeSingle()
+
+    if (siteSettings && siteSettings.ordering_enabled === false) {
+      return new Response(
+        JSON.stringify({ error: 'ordering_disabled', message: 'Online ordering is paused right now. Please call us if you need anything.' }),
+        { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const { data: settings } = await supabase
       .from('stripe_settings')
       .select('*')
