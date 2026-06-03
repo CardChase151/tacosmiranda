@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2 } from 'lucide-react'
+import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2, Power, PowerOff } from 'lucide-react'
 
 type Order = {
   id: string
@@ -40,6 +40,9 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [fetching, setFetching] = useState(false)
   const [range, setRange] = useState<Range>('today')
+  const [orderingEnabled, setOrderingEnabled] = useState<boolean>(true)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [toggling, setToggling] = useState(false)
 
   const fetchOrders = async () => {
     setFetching(true)
@@ -58,6 +61,33 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!loading && user && isAdmin) fetchOrders()
   }, [loading, user, isAdmin, range])
+
+  useEffect(() => {
+    if (!loading && user && isAdmin) {
+      supabase
+        .from('site_settings')
+        .select('ordering_enabled')
+        .eq('id', 'main')
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setOrderingEnabled(data.ordering_enabled ?? true)
+        })
+    }
+  }, [loading, user, isAdmin])
+
+  const handleToggleOrdering = async () => {
+    setToggling(true)
+    const next = !orderingEnabled
+    const { error } = await supabase
+      .from('site_settings')
+      .update({ ordering_enabled: next })
+      .eq('id', 'main')
+    setToggling(false)
+    if (!error) {
+      setOrderingEnabled(next)
+      setConfirmOpen(false)
+    }
+  }
 
   const totals = useMemo(() => {
     const t = { gross: 0, subtotal: 0, tax: 0, stripeFee: 0, appFee: 0, net: 0, count: orders.length }
@@ -114,6 +144,54 @@ export default function AdminDashboard() {
         <p style={{ color: 'var(--gray)', marginBottom: 24 }}>
           Online orders only. Numbers reflect paid orders — failed or pending-payment orders are excluded.
         </p>
+
+        <div style={{
+          background: orderingEnabled ? 'rgba(52, 211, 153, 0.08)' : 'rgba(239, 68, 68, 0.12)',
+          border: orderingEnabled ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 220 }}>
+            {orderingEnabled
+              ? <Power size={24} color="#34d399" />
+              : <PowerOff size={24} color="#ef4444" />}
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--gray)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+                Online Orders
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: orderingEnabled ? '#34d399' : '#ef4444' }}>
+                {orderingEnabled ? 'LIVE — Customers can order' : 'PAUSED — Customers see closed message'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setConfirmOpen(true)}
+            disabled={toggling}
+            style={{
+              padding: '10px 18px',
+              background: orderingEnabled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(52, 211, 153, 0.15)',
+              border: orderingEnabled ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(52, 211, 153, 0.5)',
+              borderRadius: 8,
+              color: orderingEnabled ? '#ef4444' : '#34d399',
+              fontWeight: 700,
+              cursor: toggling ? 'default' : 'pointer',
+              fontSize: 13,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            {toggling
+              ? <Loader2 size={14} className="spin" />
+              : (orderingEnabled ? <PowerOff size={14} /> : <Power size={14} />)}
+            {orderingEnabled ? 'Pause Orders' : 'Go Live'}
+          </button>
+        </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
           {(['today', 'week', 'month', 'ytd', 'all'] as Range[]).map(r => (
@@ -199,6 +277,95 @@ export default function AdminDashboard() {
         </div>
       </div>
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {confirmOpen && (
+        <div
+          onClick={() => !toggling && setConfirmOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#1a1a1a',
+              borderRadius: 16,
+              maxWidth: 480,
+              width: '100%',
+              padding: 32,
+              border: orderingEnabled ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(52, 211, 153, 0.4)',
+              boxShadow: '0 24px 80px rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              {orderingEnabled
+                ? <PowerOff size={28} color="#ef4444" />
+                : <Power size={28} color="#34d399" />}
+              <h2 style={{
+                fontFamily: 'var(--font-heading)',
+                color: 'var(--white)',
+                margin: 0,
+                fontSize: 22,
+                letterSpacing: 1,
+              }}>
+                {orderingEnabled ? 'Pause online orders?' : 'Go live with online orders?'}
+              </h2>
+            </div>
+            <p style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.6, margin: '0 0 24px' }}>
+              {orderingEnabled
+                ? 'Customers will see a "we\'re closed" message and won\'t be able to place orders until you turn it back on. Use this if something breaks or you need to stop new orders right away.'
+                : 'Customers will be able to place orders immediately. Make sure the kitchen is ready to receive them.'}
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={toggling}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  color: 'var(--gray)',
+                  fontWeight: 600,
+                  cursor: toggling ? 'default' : 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleToggleOrdering}
+                disabled={toggling}
+                style={{
+                  padding: '10px 20px',
+                  background: orderingEnabled ? '#ef4444' : '#34d399',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: toggling ? 'default' : 'pointer',
+                  fontSize: 14,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {toggling && <Loader2 size={14} className="spin" />}
+                {orderingEnabled ? 'Yes, pause orders' : 'Yes, go live'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
