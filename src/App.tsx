@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import SEO from './components/SEO'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -20,6 +20,14 @@ import './lib/trackVisit'
 import { usePageViewTracker } from './lib/usePageViewTracker'
 import './App.css'
 
+function RequireRole({ role, children }: { role: 'admin' | 'owner'; children: React.ReactNode }) {
+  const { isAdmin, isOwner, loading } = useAuth()
+  if (loading) return null
+  const allowed = role === 'owner' ? isOwner : isAdmin
+  if (!allowed) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const location = useLocation()
@@ -36,14 +44,14 @@ function AppContent() {
       <main style={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/admin/print-menu" element={<PrintMenu />} />
+          <Route path="/admin/print-menu" element={<RequireRole role="admin"><PrintMenu /></RequireRole>} />
           <Route path="/screen" element={<Screen />} />
           <Route path="/order" element={<OrderOnline />} />
           <Route path="/my-orders" element={<MyOrders />} />
-          <Route path="/admin/billing" element={<AdminBilling />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/menu-data" element={<AdminMenuData />} />
+          <Route path="/admin/billing" element={<RequireRole role="owner"><AdminBilling /></RequireRole>} />
+          <Route path="/admin/dashboard" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
+          <Route path="/admin/analytics" element={<RequireRole role="admin"><AdminAnalytics /></RequireRole>} />
+          <Route path="/admin/menu-data" element={<RequireRole role="admin"><AdminMenuData /></RequireRole>} />
         </Routes>
       </main>
       {!chromeless && !isOrderPage && <Footer />}
