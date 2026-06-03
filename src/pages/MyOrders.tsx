@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
-import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, RotateCcw, ChevronDown, ChevronUp, Check, Camera, LogIn } from 'lucide-react'
+import AdminLoginModal from '../components/AdminLoginModal'
 
 interface OrderItemMod {
   modifier_name: string
@@ -69,6 +70,7 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
   const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null)
+  const [showLogin, setShowLogin] = useState(false)
 
   // Clear cart only when Stripe redirects here with a session_id (payment confirmed).
   useEffect(() => {
@@ -334,8 +336,32 @@ export default function MyOrders() {
   if (!user && !sessionId) {
     return (
       <div style={{ padding: '80px 24px', textAlign: 'center' }}>
-        <p style={{ color: 'var(--gray)', fontSize: 16 }}>Log in to track past orders</p>
-        <Link to="/" style={{ color: 'var(--gold)', fontSize: 14 }}>Back to Home</Link>
+        <p style={{ color: 'var(--gray)', fontSize: 16, marginBottom: 24 }}>Log in to track past orders</p>
+        <button
+          onClick={() => setShowLogin(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 36px',
+            background: 'var(--gold)',
+            border: 'none',
+            borderRadius: 8,
+            color: 'var(--black)',
+            fontSize: 15,
+            fontWeight: 700,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(200, 168, 78, 0.3)',
+          }}
+        >
+          <LogIn size={18} /> Log In
+        </button>
+        <div style={{ marginTop: 20 }}>
+          <Link to="/" style={{ color: 'var(--gray)', fontSize: 13, textDecoration: 'none' }}>Back to Home</Link>
+        </div>
+        {showLogin && <AdminLoginModal onClose={() => setShowLogin(false)} title="Log In" />}
       </div>
     )
   }

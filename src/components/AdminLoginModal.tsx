@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext'
 
 interface Props {
   onClose: () => void
+  title?: string
 }
 
-export default function AdminLoginModal({ onClose }: Props) {
+export default function AdminLoginModal({ onClose, title = 'Admin Login' }: Props) {
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -64,7 +65,7 @@ export default function AdminLoginModal({ onClose }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, color: 'var(--gold)' }}>Admin Login</h2>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, color: 'var(--gold)' }}>{title}</h2>
           <button
             onClick={onClose}
             style={{ background: 'none', border: 'none', color: 'var(--gray)', padding: 4 }}
