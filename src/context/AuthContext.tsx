@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
   const profileFetchRef = useRef<{ cancelled: boolean } | null>(null)
@@ -43,6 +43,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return
       setSession(session)
       setUser(session?.user ?? null)
+      // Set profileLoading synchronously with user so RequireRole doesn't see a
+      // false "ready" frame between the auth update and the profile-fetch effect.
+      if (session?.user) {
+        setProfileLoading(true)
+      } else {
+        setProfileLoading(false)
+      }
       setLoading(false)
     })
 
@@ -50,9 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isMounted) return
       setSession(session)
       setUser(session?.user ?? null)
-      if (!session?.user) {
+      if (session?.user) {
+        setProfileLoading(true)
+      } else {
         setIsAdmin(false)
         setIsOwner(false)
+        setProfileLoading(false)
       }
       setLoading(false)
     })
