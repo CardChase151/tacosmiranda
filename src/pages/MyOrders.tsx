@@ -334,7 +334,7 @@ export default function MyOrders() {
   if (!user && !sessionId) {
     return (
       <div style={{ padding: '80px 24px', textAlign: 'center' }}>
-        <p style={{ color: 'var(--gray)', fontSize: 16 }}>Please log in to view your orders.</p>
+        <p style={{ color: 'var(--gray)', fontSize: 16 }}>Log in to track past orders</p>
         <Link to="/" style={{ color: 'var(--gold)', fontSize: 14 }}>Back to Home</Link>
       </div>
     )
