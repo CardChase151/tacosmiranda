@@ -1,26 +1,67 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../config/supabase'
 
 interface Props {
   onClose: () => void
   title?: string
+  showSignup?: boolean
 }
 
-export default function AdminLoginModal({ onClose, title = 'Admin Login' }: Props) {
+type Mode = 'login' | 'signup'
+
+export default function AdminLoginModal({ onClose, title = 'Admin Login', showSignup = false }: Props) {
   const { signIn } = useAuth()
+  const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const isSignup = mode === 'signup'
+  const headerLabel = showSignup ? (isSignup ? 'Create Account' : 'Log In') : title
+
+  const switchMode = (next: Mode) => {
+    setMode(next)
+    setError('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await signIn(email, password)
-    if (error) {
-      setError(error.message)
+
+    if (isSignup) {
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.')
+        setLoading(false)
+        return
+      }
+      const { error: signupErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: name ? { full_name: name } : undefined },
+      })
+      if (signupErr) {
+        setError(signupErr.message)
+        setLoading(false)
+        return
+      }
+      const { error: signInErr } = await signIn(email, password)
+      if (signInErr) {
+        setError(signInErr.message)
+        setLoading(false)
+        return
+      }
+      onClose()
+      return
+    }
+
+    const { error: signInErr } = await signIn(email, password)
+    if (signInErr) {
+      setError(signInErr.message)
       setLoading(false)
     } else {
       onClose()
@@ -65,7 +106,7 @@ export default function AdminLoginModal({ onClose, title = 'Admin Login' }: Prop
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, color: 'var(--gold)' }}>{title}</h2>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, color: 'var(--gold)' }}>{headerLabel}</h2>
           <button
             onClick={onClose}
             style={{ background: 'none', border: 'none', color: 'var(--gray)', padding: 4 }}
@@ -75,20 +116,36 @@ export default function AdminLoginModal({ onClose, title = 'Admin Login' }: Prop
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isSignup && (
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              style={inputStyle}
+              autoComplete="name"
+              autoCapitalize="words"
+            />
+          )}
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             style={inputStyle}
+            autoComplete="email"
+            inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
             required
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder={isSignup ? 'Password (6+ characters)' : 'Password'}
             value={password}
             onChange={e => setPassword(e.target.value)}
             style={inputStyle}
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
             required
           />
           {error && <p style={{ color: '#ef4444', fontSize: 13 }}>{error}</p>}
@@ -106,11 +163,34 @@ export default function AdminLoginModal({ onClose, title = 'Admin Login' }: Prop
               letterSpacing: 0.5,
               textTransform: 'uppercase',
               opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'default' : 'pointer',
             }}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading
+              ? (isSignup ? 'Creating account...' : 'Signing in...')
+              : (isSignup ? 'Create Account' : 'Sign In')}
           </button>
         </form>
+
+        {showSignup && (
+          <p style={{ color: 'var(--gray)', fontSize: 13, textAlign: 'center', marginTop: 18, marginBottom: 0 }}>
+            {isSignup ? 'Already have an account? ' : 'No account? '}
+            <button
+              onClick={() => switchMode(isSignup ? 'login' : 'signup')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--gold)',
+                cursor: 'pointer',
+                fontSize: 13,
+                padding: 0,
+                fontWeight: 600,
+              }}
+            >
+              {isSignup ? 'Log in' : 'Sign up'}
+            </button>
+          </p>
+        )}
       </div>
     </div>
   )

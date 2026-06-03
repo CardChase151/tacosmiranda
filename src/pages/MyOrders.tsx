@@ -361,7 +361,7 @@ export default function MyOrders() {
         <div style={{ marginTop: 20 }}>
           <Link to="/" style={{ color: 'var(--gray)', fontSize: 13, textDecoration: 'none' }}>Back to Home</Link>
         </div>
-        {showLogin && <AdminLoginModal onClose={() => setShowLogin(false)} title="Log In" />}
+        {showLogin && <AdminLoginModal onClose={() => setShowLogin(false)} title="Log In" showSignup />}
       </div>
     )
   }
