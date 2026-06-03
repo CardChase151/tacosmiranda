@@ -28,6 +28,7 @@ export default function Home() {
   const [promoEnabled, setPromoEnabled] = useState(false)
   const [promoTitle, setPromoTitle] = useState('')
   const [promoItems, setPromoItems] = useState('')
+  const [orderingEnabled, setOrderingEnabled] = useState(false)
   const [editingPromo, setEditingPromo] = useState(false)
   const [tempPromoTitle, setTempPromoTitle] = useState('')
   const [tempPromoItems, setTempPromoItems] = useState('')
@@ -49,6 +50,7 @@ export default function Home() {
       setPromoEnabled(settingsRes.data.promo_enabled ?? false)
       setPromoTitle(settingsRes.data.promo_title ?? '')
       setPromoItems(settingsRes.data.promo_items ?? '')
+      setOrderingEnabled(settingsRes.data.ordering_enabled ?? false)
     }
     setLoading(false)
   }, [])
@@ -267,22 +269,37 @@ export default function Home() {
         }} />
 
 
-        <div style={{
-          marginTop: 32,
-          padding: '10px 24px',
-          background: isBreakfast ? '#EEEBE3' : 'var(--dark-card)',
-          border: isBreakfast ? '1px solid #D4CFC3' : '1px solid var(--border)',
-          borderRadius: 4,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          transition: 'all 0.4s ease',
-        }}>
-          <ShoppingBag size={16} color={isBreakfast ? '#8B6914' : 'var(--gold)'} />
-          <span style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', transition: 'color 0.4s ease' }}>
-            Online Ordering - Coming Soon
-          </span>
-        </div>
+        {orderingEnabled && (
+          <a
+            href="/order"
+            style={{
+              marginTop: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              padding: '16px 36px',
+              background: isBreakfast ? '#8B6914' : 'var(--gold)',
+              border: 'none',
+              borderRadius: 8,
+              color: isBreakfast ? '#FAF8F3' : 'var(--black)',
+              fontSize: 15,
+              fontWeight: 700,
+              letterSpacing: 1,
+              textDecoration: 'none',
+              textTransform: 'uppercase',
+              boxShadow: isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)',
+              transition: 'all 0.4s ease',
+              width: 'fit-content',
+              maxWidth: '90vw',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 6px 24px rgba(139,105,20,0.45)' : '0 6px 24px rgba(200,168,78,0.5)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)' }}
+          >
+            <ShoppingBag size={18} />
+            <span>Order Online</span>
+          </a>
+        )}
 
         <a
           href="tel:6578454011"

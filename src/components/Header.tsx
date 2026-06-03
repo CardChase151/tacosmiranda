@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Receipt, Activity } from 'lucide-react'
+import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Activity, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../config/supabase'
 
 interface HeaderProps {
   onAdminClick: () => void
@@ -14,6 +15,20 @@ export default function Header({ onAdminClick }: HeaderProps) {
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
   )
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [orderingEnabled, setOrderingEnabled] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('site_settings')
+      .select('ordering_enabled')
+      .eq('id', 'main')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setOrderingEnabled(data.ordering_enabled ?? false)
+      })
+  }, [])
+
+  const showOrderingNav = orderingEnabled || isAdmin
 
   useEffect(() => {
     const onResize = () => {
@@ -94,7 +109,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
           >
             Location
           </button>
-          {isAdmin && (
+          {showOrderingNav && (
             <>
               <a
                 href="/order"
@@ -106,12 +121,16 @@ export default function Header({ onAdminClick }: HeaderProps) {
               </a>
               <a
                 href="/my-orders"
-                style={{ ...navTextStyle, color: '#60a5fa', textDecoration: 'none' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
-                onMouseLeave={e => e.currentTarget.style.color = '#60a5fa'}
+                style={{ ...navTextStyle, color: 'var(--gray)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
               >
-                My Orders
+                <User size={14} /> My Account
               </a>
+            </>
+          )}
+          {isAdmin && (
+            <>
               <a
                 href="/admin/dashboard"
                 style={{ ...navTextStyle, color: '#a78bfa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -307,11 +326,16 @@ export default function Header({ onAdminClick }: HeaderProps) {
               <DrawerLink onClick={() => scrollToSection('menu')} label="Menu" />
               <DrawerLink onClick={() => scrollToSection('location')} label="Location" />
 
+              {showOrderingNav && (
+                <>
+                  <DrawerLink href="/order" label="Order Online" icon={<ShoppingBag size={16} />} accentColor="var(--gold)" emphasized />
+                  <DrawerLink href="/my-orders" label="My Account" icon={<User size={16} />} accentColor="var(--white)" />
+                </>
+              )}
+
               {isAdmin && (
                 <>
                   <DrawerDivider label="Admin" />
-                  <DrawerLink href="/order" label="Order Online" icon={<ShoppingBag size={16} />} accentColor="var(--gold)" emphasized />
-                  <DrawerLink href="/my-orders" label="My Orders" icon={<Receipt size={16} />} accentColor="#60a5fa" />
                   <DrawerLink href="/admin/dashboard" label="Dashboard" icon={<BarChart3 size={16} />} accentColor="#a78bfa" />
                   <DrawerLink href="/admin/analytics" label="Analytics" icon={<Activity size={16} />} accentColor="#f472b6" />
                   <DrawerLink href="/admin/print-menu" label="Print Menu" icon={<Printer size={16} />} accentColor="var(--gold)" muted />
