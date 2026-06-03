@@ -21,8 +21,8 @@ import { usePageViewTracker } from './lib/usePageViewTracker'
 import './App.css'
 
 function RequireRole({ role, children }: { role: 'admin' | 'owner'; children: React.ReactNode }) {
-  const { isAdmin, isOwner, loading } = useAuth()
-  if (loading) return null
+  const { isAdmin, isOwner, loading, profileLoading, user } = useAuth()
+  if (loading || (user && profileLoading)) return null
   const allowed = role === 'owner' ? isOwner : isAdmin
   if (!allowed) return <Navigate to="/" replace />
   return <>{children}</>

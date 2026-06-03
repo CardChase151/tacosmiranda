@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../config/supabase'
 
@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  profileLoading: boolean
   // Staff or above. Can manage day-to-day operations (orders, 86 items, view dashboard).
   isAdmin: boolean
   // The actual restaurant owner. Can edit menu/prices, see financials, change billing/settings.
@@ -28,42 +29,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  const profileFetchRef = useRef<{ cancelled: boolean } | null>(null)
 
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('is_admin, is_owner')
-      .eq('id', userId)
-      .single()
-    setIsAdmin(data?.is_admin || false)
-    setIsOwner(data?.is_owner || false)
-  }
-
+  // Auth listener — NEVER make Supabase DB calls here (see AUTH_PLAYBOOK.md).
+  // Profile data is fetched in the separate useEffect below.
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let isMounted = true
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) await checkAdmin(session.user.id)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) {
-        setLoading(true)
-        await checkAdmin(session.user.id)
-      } else {
+      if (!session?.user) {
         setIsAdmin(false)
         setIsOwner(false)
       }
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
   }, [])
+
+  // Profile fetch — separate effect watching user.id, with 5s timeout + cancellation.
+  useEffect(() => {
+    if (!user?.id) {
+      setIsAdmin(false)
+      setIsOwner(false)
+      setProfileLoading(false)
+      return
+    }
+
+    if (profileFetchRef.current) profileFetchRef.current.cancelled = true
+    const fetchState = { cancelled: false }
+    profileFetchRef.current = fetchState
+
+    setProfileLoading(true)
+
+    const fetchProfile = async () => {
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        })
+        const result = await Promise.race([
+          supabase.from('profiles').select('is_admin, is_owner').eq('id', user.id).single(),
+          timeoutPromise,
+        ])
+        if (fetchState.cancelled) return
+        const { data } = result as { data: { is_admin?: boolean; is_owner?: boolean } | null }
+        setIsAdmin(data?.is_admin || false)
+        setIsOwner(data?.is_owner || false)
+      } catch (err) {
+        if (!fetchState.cancelled) console.error('[Auth] profile fetch failed:', err)
+      } finally {
+        if (!fetchState.cancelled) setProfileLoading(false)
+      }
+    }
+
+    fetchProfile()
+
+    return () => { fetchState.cancelled = true }
+  }, [user?.id])
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -76,6 +114,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut()
   }
 
-  const value = { user, session, loading, isAdmin, isOwner, signIn, signOut }
+  const value = { user, session, loading, profileLoading, isAdmin, isOwner, signIn, signOut }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
