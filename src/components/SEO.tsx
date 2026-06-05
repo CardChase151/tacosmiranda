@@ -10,7 +10,7 @@ type RouteMeta = {
   noindex?: boolean
 }
 
-const DEFAULT_DESCRIPTION = 'Authentic Mexican food in Huntington Beach. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM. Call (657) 845-4011 or order online.'
+const DEFAULT_DESCRIPTION = 'Authentic Mexican food in Huntington Beach. Tacos, burritos, tortas, quesabirria and more. Open 7 days, 7AM-9PM. Order online for pickup.'
 
 const ROUTE_META: Record<string, RouteMeta> = {
   '/': {

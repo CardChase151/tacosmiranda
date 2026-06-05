@@ -201,7 +201,7 @@ function OrderContent() {
           </h2>
           <p style={{ color: 'var(--gray)', fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>
             {!orderingEnabled
-              ? 'Online ordering is paused. Please call us if you need anything.'
+              ? 'Online ordering is paused right now. Please check back soon.'
               : openStatus?.nextOpenLabel
                 ? <>Online ordering reopens <strong style={{ color: 'var(--gold)' }}>{openStatus.nextOpenLabel}</strong>.</>
                 : 'Please come back during business hours.'}
@@ -211,15 +211,6 @@ function OrderContent() {
               Today's hours: {openStatus.todayHoursLabel}
             </p>
           )}
-          <a href="tel:6578454011" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '12px 24px',
-            background: 'var(--gold)', color: 'var(--black)',
-            borderRadius: 10, fontSize: 14, fontWeight: 700, letterSpacing: 0.5,
-            textDecoration: 'none',
-          }}>
-            Call (657) 845-4011
-          </a>
         </div>
       </div>
     )

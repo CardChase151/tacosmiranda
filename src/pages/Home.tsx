@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MapPin, Clock, Phone, ShoppingBag, Search, X, Pencil, Check, Eye, EyeOff, ArrowUpDown } from 'lucide-react'
+import { MapPin, Clock, ShoppingBag, Search, X, Pencil, Check, Eye, EyeOff, ArrowUpDown } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
 import { MenuCategory, MenuItem } from '../types'
@@ -301,36 +301,6 @@ export default function Home() {
           </a>
         )}
 
-        <a
-          href="tel:6578454011"
-          style={{
-            marginTop: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            padding: '16px 36px',
-            background: isBreakfast ? '#1a1a1a' : 'var(--gold)',
-            border: 'none',
-            borderRadius: 8,
-            color: isBreakfast ? '#FAF8F3' : 'var(--black)',
-            fontSize: 15,
-            fontWeight: 700,
-            letterSpacing: 1,
-            textDecoration: 'none',
-            textTransform: 'uppercase',
-            boxShadow: isBreakfast ? '0 4px 16px rgba(0,0,0,0.15)' : '0 4px 16px rgba(200,168,78,0.3)',
-            transition: 'all 0.4s ease',
-            width: 'fit-content',
-            maxWidth: '90vw',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 6px 24px rgba(0,0,0,0.25)' : '0 6px 24px rgba(200,168,78,0.5)' }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 4px 16px rgba(0,0,0,0.15)' : '0 4px 16px rgba(200,168,78,0.3)' }}
-        >
-          <Phone size={18} />
-          <span>Tap to Call & Order</span>
-        </a>
-        <p style={{ color: isBreakfast ? '#888' : 'var(--gray)', fontSize: 14, marginTop: 8, letterSpacing: 1, transition: 'color 0.4s ease' }}>(657) 845-4011</p>
       </section>
 
 

@@ -116,7 +116,7 @@ export default function OrderCheckout({ onBack }: OrderCheckoutProps) {
         .maybeSingle()
 
       if (siteSettings && siteSettings.ordering_enabled === false) {
-        setError('Online ordering is paused right now. Please call us at (657) 845-4011 to place your order.')
+        setError('Online ordering is paused right now. Please check back soon.')
         setSubmitting(false)
         return
       }
