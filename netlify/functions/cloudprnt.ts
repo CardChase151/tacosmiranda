@@ -361,28 +361,57 @@ function buildRawTestVariation(variation: 1 | 2 | 3): string {
 }
 
 function buildRawDiagnostic(): string {
-  // Print "Aa1Aa1" at many GS!n combinations so we can see which actually
-  // grow. Each row labels its own size.
-  const combos: Array<[number, number]> = [
-    [1, 1],
-    [2, 1], [1, 2], [2, 2],
-    [3, 1], [1, 3], [3, 2], [2, 3], [3, 3],
-    [4, 1], [1, 4], [4, 2], [2, 4], [4, 4],
-    [5, 2], [6, 2], [6, 6],
-  ]
-
+  // Tries every plausible size command this printer might support. Each
+  // attempt is bracketed by a reset so the next label starts at default.
+  // The reader compares each labeled line to BASELINE to find which command
+  // actually grew the text.
   const parts: Buffer[] = []
-  parts.push(RAW_INIT, RAW_ALIGN_C, RAW_NORMAL, t('== SIZE DIAGNOSTIC ==\n\n'))
-  parts.push(RAW_ALIGN_L)
 
-  // Baseline (1x1) for visual comparison.
-  parts.push(RAW_NORMAL, t('BASELINE 1x1: Aa1Aa1\n\n'))
+  parts.push(RAW_INIT, RAW_ALIGN_C, t('SIZE TEST v2\n\n'), RAW_ALIGN_L)
+  parts.push(t('BASELINE: Aa1Aa1Aa1\n\n'))
 
-  for (const [w, h] of combos) {
-    parts.push(rawSize(w, h), t(`w${w} h${h}: Aa1\n`))
-  }
+  // -- ESC/POS GS!n (we already know this doesn't work, included as control)
+  parts.push(t('-- GS!n (ESC/POS) --\n'))
+  parts.push(Buffer.from([GS, 0x21, 0x11]), t('GSn 2x2: Aa1\n'),  Buffer.from([GS, 0x21, 0x00]))
+  parts.push(Buffer.from([GS, 0x21, 0x22]), t('GSn 3x3: Aa1\n'),  Buffer.from([GS, 0x21, 0x00]))
+  parts.push(t('\n'))
 
-  parts.push(RAW_NORMAL, t('\n'), RAW_ALIGN_C, t('== end ==\n\n'), RAW_CUT)
+  // -- ESC/POS ESC!n (print mode bits: bit4=2H, bit5=2W) --
+  parts.push(t('-- ESC!n (ESC/POS) --\n'))
+  parts.push(Buffer.from([ESC, 0x21, 0x10]), t('ESC!10 (2H): Aa1\n'), Buffer.from([ESC, 0x21, 0x00]))
+  parts.push(Buffer.from([ESC, 0x21, 0x20]), t('ESC!20 (2W): Aa1\n'), Buffer.from([ESC, 0x21, 0x00]))
+  parts.push(Buffer.from([ESC, 0x21, 0x30]), t('ESC!30 (2x2): Aa1\n'), Buffer.from([ESC, 0x21, 0x00]))
+  parts.push(t('\n'))
+
+  // -- Star Line Mode ESC i n (one byte: bit0=2H, bit1=2W) --
+  parts.push(t('-- ESC i n (Star 1byte) --\n'))
+  parts.push(Buffer.from([ESC, 0x69, 0x01]), t('ESCi1 (2H): Aa1\n'), Buffer.from([ESC, 0x69, 0x00]))
+  parts.push(Buffer.from([ESC, 0x69, 0x02]), t('ESCi2 (2W): Aa1\n'), Buffer.from([ESC, 0x69, 0x00]))
+  parts.push(Buffer.from([ESC, 0x69, 0x03]), t('ESCi3 (2x2): Aa1\n'), Buffer.from([ESC, 0x69, 0x00]))
+  parts.push(t('\n'))
+
+  // -- Star Line Mode ESC i n m (two byte: n=vert, m=horiz) --
+  parts.push(t('-- ESC i n m (Star 2byte) --\n'))
+  parts.push(Buffer.from([ESC, 0x69, 0x01, 0x01]), t('ESCi 1 1: Aa1\n'), Buffer.from([ESC, 0x69, 0x00, 0x00]))
+  parts.push(Buffer.from([ESC, 0x69, 0x02, 0x02]), t('ESCi 2 2: Aa1\n'), Buffer.from([ESC, 0x69, 0x00, 0x00]))
+  parts.push(Buffer.from([ESC, 0x69, 0x05, 0x05]), t('ESCi 5 5: Aa1\n'), Buffer.from([ESC, 0x69, 0x00, 0x00]))
+  parts.push(t('\n'))
+
+  // -- Star Line Mode ESC h n (height multiplier) --
+  parts.push(t('-- ESC h n (Star height) --\n'))
+  parts.push(Buffer.from([ESC, 0x68, 0x01]), t('ESCh1: Aa1\n'), Buffer.from([ESC, 0x68, 0x00]))
+  parts.push(Buffer.from([ESC, 0x68, 0x03]), t('ESCh3: Aa1\n'), Buffer.from([ESC, 0x68, 0x00]))
+  parts.push(Buffer.from([ESC, 0x68, 0x05]), t('ESCh5: Aa1\n'), Buffer.from([ESC, 0x68, 0x00]))
+  parts.push(t('\n'))
+
+  // -- Star Line Mode ESC W n (width multiplier) --
+  parts.push(t('-- ESC W n (Star width) --\n'))
+  parts.push(Buffer.from([ESC, 0x57, 0x01]), t('ESCW1: Aa1\n'), Buffer.from([ESC, 0x57, 0x00]))
+  parts.push(Buffer.from([ESC, 0x57, 0x03]), t('ESCW3: Aa1\n'), Buffer.from([ESC, 0x57, 0x00]))
+  parts.push(t('\n'))
+
+  parts.push(t('BASELINE: Aa1Aa1Aa1\n\n'))
+  parts.push(RAW_ALIGN_C, t('== end ==\n\n'), RAW_CUT)
   return Buffer.concat(parts).toString('base64')
 }
 
