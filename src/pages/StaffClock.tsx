@@ -29,14 +29,16 @@ export default function StaffClock() {
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null)
   const pendingPinRef = useRef<string>('')
 
-  // Auto-reset to idle after any terminal state.
+  // Auto-reset to idle after any terminal state. Errors stay longer so the
+  // reader has time to scan coords/distance for debugging.
   useEffect(() => {
     if (state.kind === 'result' || state.kind === 'error' || state.kind === 'geo-blocked') {
+      const delay = state.kind === 'error' ? 9000 : RESET_MS
       const t = setTimeout(() => {
         setState({ kind: 'idle' })
         setPin('')
         coordsRef.current = null
-      }, RESET_MS)
+      }, delay)
       return () => clearTimeout(t)
     }
   }, [state.kind])
@@ -109,13 +111,14 @@ export default function StaffClock() {
 
       if (!res.ok) {
         appendLocalLog({ event: 'error', status: res.status, error: data.error })
-        const distance = typeof data.distance_m === 'number'
-          ? ` (you are ~${data.distance_m}m away)`
-          : ''
-        setState({
-          kind: 'error',
-          message: (data.error || 'Something went wrong') + distance,
-        })
+        const parts: string[] = [data.error || 'Something went wrong']
+        if (typeof data.distance_m === 'number') {
+          parts.push(`~${data.distance_m}m from ${data.nearest || 'nearest location'}`)
+        }
+        if (typeof data.your_lat === 'number' && typeof data.your_lng === 'number') {
+          parts.push(`Your coords: ${data.your_lat.toFixed(5)}, ${data.your_lng.toFixed(5)}`)
+        }
+        setState({ kind: 'error', message: parts.join(' • ') })
         return
       }
 
