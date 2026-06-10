@@ -29,6 +29,43 @@ export default function StaffClock() {
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null)
   const pendingPinRef = useRef<string>('')
 
+  // Swap the page's manifest for a kiosk-specific one. Without this, the
+  // site's default manifest sets start_url to "/" and "Add to Home Screen"
+  // would launch the launcher icon back to the homepage. Setting scope to
+  // this URL also keeps the PWA locked to the kiosk path — any wandering
+  // navigation falls back to the browser instead of staying in the app.
+  useEffect(() => {
+    const prevTitle = document.title
+    document.title = 'Staff Clock'
+    const link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+    const prevHref = link?.href
+    let blobUrl: string | null = null
+    if (link) {
+      const manifest = {
+        name: 'Staff Clock',
+        short_name: 'Clock',
+        start_url: window.location.pathname,
+        scope: window.location.pathname,
+        display: 'standalone',
+        background_color: '#0a0a0a',
+        theme_color: '#0a0a0a',
+        icons: [
+          { src: '/logo192.png', type: 'image/png', sizes: '192x192' },
+          { src: '/logo512.png', type: 'image/png', sizes: '512x512' },
+        ],
+      }
+      blobUrl = URL.createObjectURL(
+        new Blob([JSON.stringify(manifest)], { type: 'application/json' }),
+      )
+      link.href = blobUrl
+    }
+    return () => {
+      document.title = prevTitle
+      if (link && prevHref) link.href = prevHref
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
+  }, [])
+
   // Auto-reset to idle after any terminal state. Errors stay longer so the
   // reader has time to scan coords/distance for debugging.
   useEffect(() => {
