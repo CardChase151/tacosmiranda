@@ -64,6 +64,32 @@ async function main() {
     return
   }
 
+  if (arg === 'diag') {
+    const orderNumber = `DIAG-${Date.now().toString().slice(-4)}`
+    const { data, error } = await supabase
+      .from('orders')
+      .insert({
+        order_number: orderNumber,
+        user_id: null,
+        customer_name: TEST_CUSTOMER,
+        customer_email: 'test@example.com',
+        customer_phone: '(714) 555-1234',
+        status: 'pending',
+        printed: false,
+        subtotal: 0,
+        tax: 0,
+        total: 0,
+        special_instructions: `__TEST_DIAGNOSTIC__`,
+      })
+      .select('id, order_number')
+      .single()
+
+    if (error) throw new Error(`Diag insert failed: ${error.message}`)
+    console.log(`Diagnostic queued: order ${data.order_number} (id ${data.id})`)
+    console.log('Printer will print one sheet showing many size combinations.')
+    return
+  }
+
   const which = arg ? [parseInt(arg, 10)] : [1, 2, 3]
   if (which.some((n) => ![1, 2, 3].includes(n))) {
     console.log('Usage: node scripts/insert-test-orders.js [1|2|3|cleanup]')

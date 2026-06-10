@@ -101,6 +101,17 @@ const handler: Handler = async (event) => {
         }
       }
 
+      // ── Size diagnostic: prints a single sheet showing every common
+      //    [mag] combination so we can see which sizes the printer
+      //    actually honors. ──
+      if ((order.special_instructions || '').startsWith('__TEST_DIAGNOSTIC__')) {
+        return {
+          statusCode: 200,
+          headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
+          body: buildDiagnosticReceipt(),
+        }
+      }
+
       // Fetch order items
       const { data: items } = await supabase
         .from('order_items')
@@ -316,5 +327,33 @@ function buildSingleTestReceipt(variation: 1 | 2 | 3): string {
 function buildTestReceiptMarkup(variation: 1 | 2 | 3): string {
   const single = buildSingleTestReceipt(variation)
   return single + `[cut: feed; partial]\n` + single + `[cut: feed; partial]\n`
+}
+
+function buildDiagnosticReceipt(): string {
+  // Prints one sheet sampling many [mag] combinations so we can see what
+  // this printer actually supports. Each line labels its own size.
+  const combos: Array<[number, number]> = [
+    [1, 1],
+    [2, 1], [1, 2], [2, 2],
+    [3, 1], [1, 3], [3, 2], [2, 3], [3, 3],
+    [4, 1], [1, 4], [4, 2], [2, 4], [4, 4],
+    [5, 2], [6, 2], [6, 6],
+  ]
+
+  let s = ''
+  s += `[align: center]\n`
+  s += `== SIZE DIAGNOSTIC ==\n`
+  s += `\n`
+  s += `[align: left]\n`
+  for (const [w, h] of combos) {
+    const label = `w${w} h${h}: Aa1`
+    s += `${mag(w, h, label)}\n`
+  }
+  s += `\n`
+  s += `[align: center]\n`
+  s += `== end ==\n`
+  s += `\n`
+  s += `[cut: feed; partial]\n`
+  return s
 }
 
