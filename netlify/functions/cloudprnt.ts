@@ -88,6 +88,19 @@ const handler: Handler = async (event) => {
         return { statusCode: 404, headers, body: 'Order not found' }
       }
 
+      // ── Test-receipt mode (font-size testing). Triggered by a marker in
+      //    special_instructions. Returns a sample receipt at a chosen size
+      //    variation, printed twice with a partial cut between copies. ──
+      const testMatch = (order.special_instructions || '').match(/^__TEST_RECEIPT_V([123])__/)
+      if (testMatch) {
+        const variation = parseInt(testMatch[1], 10) as 1 | 2 | 3
+        return {
+          statusCode: 200,
+          headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
+          body: buildTestReceiptMarkup(variation),
+        }
+      }
+
       // Fetch order items
       const { data: items } = await supabase
         .from('order_items')
@@ -211,3 +224,93 @@ const handler: Handler = async (event) => {
 }
 
 export { handler }
+
+// ── Test-receipt builder ──────────────────────────────────────────────────────
+// Three font-size variations of a sample online order, used to pick the size
+// the shop wants on the real receipts. Each call returns markup that prints two
+// copies separated by a partial cut.
+
+type TestSpec = {
+  label: string
+  header: [number, number]
+  orderNum: [number, number]
+  body: [number, number]
+  total: [number, number]
+  cols: number
+}
+
+const TEST_SPECS: Record<1 | 2 | 3, TestSpec> = {
+  1: { label: 'VARIATION 1 (slightly bigger)',   header: [2, 2], orderNum: [2, 2], body: [1, 2], total: [2, 2], cols: 32 },
+  2: { label: 'VARIATION 2 (noticeably bigger)', header: [2, 3], orderNum: [2, 2], body: [2, 2], total: [2, 3], cols: 16 },
+  3: { label: 'VARIATION 3 (largest)',           header: [2, 3], orderNum: [2, 3], body: [2, 3], total: [2, 4], cols: 16 },
+}
+
+const TEST_ITEMS = [
+  { qty: 2, name: 'Carne Asada Tacos',  price: 15.00, notes: ['add cheese, sour cream', 'NO onions'] },
+  { qty: 1, name: 'California Burrito', price: 14.99, notes: ['EXTRA guacamole (+$1.50)'] },
+  { qty: 1, name: 'Horchata',           price: 3.50,  notes: ['** large please'] },
+]
+
+function padLeft(s: string, n: number): string {
+  return s.length >= n ? s : ' '.repeat(n - s.length) + s
+}
+
+function padBetween(left: string, right: string, n: number): string {
+  const gap = Math.max(1, n - left.length - right.length)
+  return left + ' '.repeat(gap) + right
+}
+
+function buildSingleTestReceipt(variation: 1 | 2 | 3): string {
+  const v = TEST_SPECS[variation]
+  const dashes = '-'.repeat(v.cols)
+
+  let s = ''
+  s += `[align: center]\n`
+  s += `-- ${v.label} --\n`
+  s += `\n`
+  s += `[mag: w ${v.header[0]}; h ${v.header[1]}][bold: on]TACOS MIRANDA[bold: off][mag]\n`
+  s += `\n`
+  s += `[mag: w ${v.orderNum[0]}; h ${v.orderNum[1]}][bold: on]ORDER TST${variation}[bold: off][mag]\n`
+  s += `\n`
+  s += `[align: left]\n`
+  s += `[mag: w ${v.body[0]}; h ${v.body[1]}]`
+  s += `[bold: on]Test Customer[bold: off]\n`
+  s += `(714) 555-1234\n`
+  s += `Today, 2:45 PM\n`
+  s += `\n`
+  s += `${dashes}\n`
+
+  for (const item of TEST_ITEMS) {
+    s += `\n`
+    const priceStr = `$${item.price.toFixed(2)}`
+    if (v.cols >= 28) {
+      s += `[bold: on]${padBetween(`${item.qty}x ${item.name}`, priceStr, v.cols)}[bold: off]\n`
+    } else {
+      s += `[bold: on]${item.qty}x ${item.name}[bold: off]\n`
+      s += `${padLeft(priceStr, v.cols)}\n`
+    }
+    for (const note of item.notes) {
+      s += `  ${note}\n`
+    }
+  }
+
+  s += `\n`
+  s += `${dashes}\n`
+  s += `${padBetween('Subtotal', '$33.49', v.cols)}\n`
+  s += `${padBetween('Tax', '$2.93', v.cols)}\n`
+  s += `[mag][mag: w ${v.total[0]}; h ${v.total[1]}][bold: on]TOTAL  $36.42[bold: off][mag]\n`
+  s += `\n`
+  s += `[align: center]\n`
+  s += `(657) 845-4011\n`
+  s += `21582 Brookhurst St\n`
+  s += `HB CA 92646\n`
+  s += `\n`
+
+  return s
+}
+
+function buildTestReceiptMarkup(variation: 1 | 2 | 3): string {
+  const single = buildSingleTestReceipt(variation)
+  return single + `[cut: feed; partial]\n` + single + `[cut: feed; partial]\n`
+}
+
