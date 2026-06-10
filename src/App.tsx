@@ -16,6 +16,8 @@ import AdminBilling from './pages/AdminBilling'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminMenuData from './pages/AdminMenuData'
 import AdminAnalytics from './pages/AdminAnalytics'
+import AdminPins from './pages/AdminPins'
+import StaffClock from './pages/StaffClock'
 import './lib/trackVisit'
 import { usePageViewTracker } from './lib/usePageViewTracker'
 import './App.css'
@@ -35,7 +37,8 @@ function AppContent() {
   const isPrintPage = location.pathname === '/admin/print-menu'
   const isOrderPage = location.pathname === '/order'
   const isScreenPage = location.pathname === '/screen'
-  const chromeless = isPrintPage || isScreenPage
+  const isClockPage = location.pathname.startsWith('/clock-')
+  const chromeless = isPrintPage || isScreenPage || isClockPage
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -52,6 +55,9 @@ function AppContent() {
           <Route path="/admin/dashboard" element={<RequireRole role="admin"><AdminDashboard /></RequireRole>} />
           <Route path="/admin/analytics" element={<RequireRole role="admin"><AdminAnalytics /></RequireRole>} />
           <Route path="/admin/menu-data" element={<RequireRole role="admin"><AdminMenuData /></RequireRole>} />
+          <Route path="/admin/pins" element={<RequireRole role="admin"><AdminPins /></RequireRole>} />
+          {/* Hidden staff time-clock kiosk. The trailing slug is the only thing protecting this URL — keep it out of any nav, sitemap, or link. */}
+          <Route path="/clock-x9k2m7p4q3" element={<StaffClock />} />
         </Routes>
       </main>
       {!chromeless && !isOrderPage && <Footer />}

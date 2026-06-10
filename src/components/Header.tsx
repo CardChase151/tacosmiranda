@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Activity, User } from 'lucide-react'
+import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Activity, User, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
 
@@ -154,6 +154,14 @@ export default function Header({ onAdminClick }: HeaderProps) {
                 onMouseLeave={e => e.currentTarget.style.opacity = '1'}
               >
                 Menu Data
+              </a>
+              <a
+                href="/admin/pins"
+                style={{ ...navTextStyle, color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
+                onMouseLeave={e => e.currentTarget.style.color = '#60a5fa'}
+              >
+                <Users size={14} /> Pins
               </a>
             </>
           )}
@@ -338,6 +346,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
                   <DrawerDivider label="Admin" />
                   <DrawerLink href="/admin/dashboard" label="Dashboard" icon={<BarChart3 size={16} />} accentColor="#a78bfa" />
                   <DrawerLink href="/admin/analytics" label="Analytics" icon={<Activity size={16} />} accentColor="#f472b6" />
+                  <DrawerLink href="/admin/pins" label="Pins" icon={<Users size={16} />} accentColor="#60a5fa" />
                   <DrawerLink href="/admin/print-menu" label="Print Menu" icon={<Printer size={16} />} accentColor="var(--gold)" muted />
                 </>
               )}
