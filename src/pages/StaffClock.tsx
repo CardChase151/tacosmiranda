@@ -4,8 +4,69 @@ import { Fingerprint, MapPin, Loader2, Check, X, AlertTriangle, Delete } from 'l
 // Local log key — every attempted clock event is mirrored here as a safety net
 // in case the network call fails (the edge function is still the source of truth).
 const LS_LOG_KEY = 'tacos_clock_local_log'
+// Cached last-known device location. Lets the kiosk skip the geolocation
+// prompt on every tap (tablet is wall-mounted, won't move). Refreshed in the
+// background after a successful clock event.
+const LS_GEO_KEY = 'tacos_clock_geo_cache'
 const PIN_LENGTH = 6
 const RESET_MS = 4000
+const GEO_CACHE_MS = 24 * 60 * 60 * 1000  // 24 hours
+const TAP_DEBOUNCE_MS = 80                 // ghost-tap debounce
+const FETCH_ATTEMPTS = 3
+const FETCH_BACKOFF_MS = 500
+
+function readGeoCache(): { lat: number; lng: number; savedAt: number } | null {
+  try {
+    const raw = localStorage.getItem(LS_GEO_KEY)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    if (typeof obj?.lat !== 'number' || typeof obj?.lng !== 'number' || typeof obj?.savedAt !== 'number') return null
+    if (Date.now() - obj.savedAt > GEO_CACHE_MS) return null
+    return obj
+  } catch { return null }
+}
+
+function writeGeoCache(lat: number, lng: number) {
+  try {
+    localStorage.setItem(LS_GEO_KEY, JSON.stringify({ lat, lng, savedAt: Date.now() }))
+  } catch { /* ignore */ }
+}
+
+function refreshGeoInBackground() {
+  if (!navigator.geolocation) return
+  navigator.geolocation.getCurrentPosition(
+    (pos) => writeGeoCache(pos.coords.latitude, pos.coords.longitude),
+    () => { /* ignore */ },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+  )
+}
+
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let lastErr: unknown
+  for (let i = 0; i < FETCH_ATTEMPTS; i++) {
+    try {
+      const res = await fetch(url, init)
+      // 5xx is worth retrying; 4xx is not.
+      if (res.status >= 500 && i < FETCH_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, FETCH_BACKOFF_MS * (i + 1)))
+        continue
+      }
+      return res
+    } catch (err) {
+      lastErr = err
+      if (i < FETCH_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, FETCH_BACKOFF_MS * (i + 1)))
+      }
+    }
+  }
+  throw lastErr
+}
+
+function vibrate(ms: number) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { (navigator as Navigator).vibrate(ms) } catch { /* ignore */ }
+  }
+}
 
 type Result = {
   action: 'clock_in' | 'clock_out'
@@ -91,6 +152,17 @@ export default function StaffClock() {
   }
 
   const requestGeo = useCallback(() => {
+    // Use cached coords instantly when available (24hr window). Tablet is
+    // wall-mounted so the location doesn't really change between taps.
+    const cached = readGeoCache()
+    if (cached) {
+      coordsRef.current = { lat: cached.lat, lng: cached.lng }
+      setState({ kind: 'pin-entry' })
+      // Quietly refresh in the background so the cache stays accurate.
+      refreshGeoInBackground()
+      return
+    }
+
     setState({ kind: 'checking-geo' })
     if (!navigator.geolocation) {
       setState({ kind: 'geo-blocked', reason: 'This device does not support location services.' })
@@ -99,6 +171,7 @@ export default function StaffClock() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         coordsRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        writeGeoCache(pos.coords.latitude, pos.coords.longitude)
         setState({ kind: 'pin-entry' })
       },
       (err) => {
@@ -135,7 +208,7 @@ export default function StaffClock() {
     }
 
     try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/staff-clock`, {
+      const res = await fetchWithRetry(`${supabaseUrl}/functions/v1/staff-clock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -180,6 +253,9 @@ export default function StaffClock() {
         },
       })
       setPin('')
+      // Refresh the cached location after every successful event so the
+      // next person who walks up gets a fresh fix.
+      refreshGeoInBackground()
     } catch (err: any) {
       appendLocalLog({ event: 'fetch_failed', message: err?.message })
       setState({ kind: 'error', message: 'Network error. Try again.' })
@@ -193,14 +269,24 @@ export default function StaffClock() {
     }
   }, [pin, state.kind, submit])
 
+  const lastTapRef = useRef(0)
+
   const onDigit = (d: string) => {
     if (state.kind !== 'pin-entry') return
     if (pin.length >= PIN_LENGTH) return
-    setPin(pin + d)
+    const now = Date.now()
+    if (now - lastTapRef.current < TAP_DEBOUNCE_MS) return
+    lastTapRef.current = now
+    vibrate(12)
+    setPin((prev) => (prev.length >= PIN_LENGTH ? prev : prev + d))
   }
   const onBackspace = () => {
     if (state.kind !== 'pin-entry') return
-    setPin(pin.slice(0, -1))
+    const now = Date.now()
+    if (now - lastTapRef.current < TAP_DEBOUNCE_MS) return
+    lastTapRef.current = now
+    vibrate(12)
+    setPin((prev) => prev.slice(0, -1))
   }
 
   // ─── styles ────────────────────────────────────────────────────────────────
@@ -218,10 +304,10 @@ export default function StaffClock() {
   }
   const card: React.CSSProperties = {
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 560,
     background: '#161616',
     borderRadius: 24,
-    padding: 32,
+    padding: 36,
     border: '1px solid #2a2a2a',
     textAlign: 'center',
   }
@@ -245,20 +331,24 @@ export default function StaffClock() {
     background: '#1f1f1f',
     color: '#fff',
     border: '1px solid #2f2f2f',
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 0,
-    fontSize: 28,
-    fontWeight: 600,
-    height: 72,
+    fontSize: 38,
+    fontWeight: 700,
+    height: 96,
     cursor: 'pointer',
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent',
+    transition: 'transform 80ms ease-out, background 80ms ease-out',
   }
   const dot = (filled: boolean): React.CSSProperties => ({
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
     borderRadius: '50%',
     background: filled ? '#fbbf24' : 'transparent',
     border: '2px solid #fbbf24',
-    transition: 'background 0.1s',
+    transition: 'background 0.1s, transform 0.1s',
+    transform: filled ? 'scale(1.1)' : 'scale(1)',
   })
 
   // ─── render by state ───────────────────────────────────────────────────────
@@ -297,23 +387,30 @@ export default function StaffClock() {
 
         {state.kind === 'pin-entry' && (
           <>
-            <div style={{ fontSize: 13, color: '#888', letterSpacing: 2, marginBottom: 20 }}>ENTER YOUR PIN</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 28 }}>
+            <style>{`
+              .clock-pad-btn:active {
+                transform: scale(0.93);
+                background: #3a3a3a !important;
+              }
+            `}</style>
+            <div style={{ fontSize: 13, color: '#888', letterSpacing: 2, marginBottom: 22 }}>ENTER YOUR PIN</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 32 }}>
               {Array.from({ length: PIN_LENGTH }).map((_, i) => (
                 <div key={i} style={dot(i < pin.length)} />
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-                <button key={d} style={padBtn} onClick={() => onDigit(d)}>{d}</button>
+                <button key={d} className="clock-pad-btn" style={padBtn} onClick={() => onDigit(d)}>{d}</button>
               ))}
               <div />
-              <button style={padBtn} onClick={() => onDigit('0')}>0</button>
+              <button className="clock-pad-btn" style={padBtn} onClick={() => onDigit('0')}>0</button>
               <button
+                className="clock-pad-btn"
                 style={{ ...padBtn, background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={onBackspace}
               >
-                <Delete size={26} />
+                <Delete size={32} />
               </button>
             </div>
           </>
