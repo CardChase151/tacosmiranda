@@ -260,45 +260,49 @@ function padBetween(left: string, right: string, n: number): string {
   return left + ' '.repeat(gap) + right
 }
 
+function mag(w: number, h: number, text: string): string {
+  return `[mag: w ${w}; h ${h}]${text}[mag]`
+}
+
 function buildSingleTestReceipt(variation: 1 | 2 | 3): string {
   const v = TEST_SPECS[variation]
+  const M = (txt: string) => mag(v.body[0], v.body[1], txt)
   const dashes = '-'.repeat(v.cols)
 
   let s = ''
   s += `[align: center]\n`
   s += `-- ${v.label} --\n`
   s += `\n`
-  s += `[mag: w ${v.header[0]}; h ${v.header[1]}][bold: on]TACOS MIRANDA[bold: off][mag]\n`
+  s += `${mag(v.header[0], v.header[1], '[bold: on]TACOS MIRANDA[bold: off]')}\n`
   s += `\n`
-  s += `[mag: w ${v.orderNum[0]}; h ${v.orderNum[1]}][bold: on]ORDER TST${variation}[bold: off][mag]\n`
+  s += `${mag(v.orderNum[0], v.orderNum[1], `[bold: on]ORDER TST${variation}[bold: off]`)}\n`
   s += `\n`
   s += `[align: left]\n`
-  s += `[mag: w ${v.body[0]}; h ${v.body[1]}]`
-  s += `[bold: on]Test Customer[bold: off]\n`
-  s += `(714) 555-1234\n`
-  s += `Today, 2:45 PM\n`
+  s += `${M('[bold: on]Test Customer[bold: off]')}\n`
+  s += `${M('(714) 555-1234')}\n`
+  s += `${M('Today, 2:45 PM')}\n`
   s += `\n`
-  s += `${dashes}\n`
+  s += `${M(dashes)}\n`
 
   for (const item of TEST_ITEMS) {
     s += `\n`
     const priceStr = `$${item.price.toFixed(2)}`
     if (v.cols >= 28) {
-      s += `[bold: on]${padBetween(`${item.qty}x ${item.name}`, priceStr, v.cols)}[bold: off]\n`
+      s += `${M(`[bold: on]${padBetween(`${item.qty}x ${item.name}`, priceStr, v.cols)}[bold: off]`)}\n`
     } else {
-      s += `[bold: on]${item.qty}x ${item.name}[bold: off]\n`
-      s += `${padLeft(priceStr, v.cols)}\n`
+      s += `${M(`[bold: on]${item.qty}x ${item.name}[bold: off]`)}\n`
+      s += `${M(padLeft(priceStr, v.cols))}\n`
     }
     for (const note of item.notes) {
-      s += `  ${note}\n`
+      s += `${M(`  ${note}`)}\n`
     }
   }
 
   s += `\n`
-  s += `${dashes}\n`
-  s += `${padBetween('Subtotal', '$33.49', v.cols)}\n`
-  s += `${padBetween('Tax', '$2.93', v.cols)}\n`
-  s += `[mag][mag: w ${v.total[0]}; h ${v.total[1]}][bold: on]TOTAL  $36.42[bold: off][mag]\n`
+  s += `${M(dashes)}\n`
+  s += `${M(padBetween('Subtotal', '$33.49', v.cols))}\n`
+  s += `${M(padBetween('Tax', '$2.93', v.cols))}\n`
+  s += `${mag(v.total[0], v.total[1], `[bold: on]TOTAL  $36.42[bold: off]`)}\n`
   s += `\n`
   s += `[align: center]\n`
   s += `(657) 845-4011\n`
