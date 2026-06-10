@@ -33,7 +33,7 @@ const handler: Handler = async (event) => {
       // Find oldest unprinted order
       const { data: order } = await supabase
         .from('orders')
-        .select('id, order_number')
+        .select('id, order_number, special_instructions')
         .eq('printed', false)
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
@@ -41,12 +41,17 @@ const handler: Handler = async (event) => {
         .single()
 
       if (order) {
+        // Test/diagnostic orders are returned as raw StarPRNT bytes (the
+        // TSP143IV doesn't honor [mag] tags in markup mode).
+        const isTest = /^__TEST_/.test(order.special_instructions || '')
         return {
           statusCode: 200,
           headers,
           body: JSON.stringify({
             jobReady: true,
-            mediaTypes: ['text/vnd.star.markup'],
+            mediaTypes: isTest
+              ? ['application/vnd.star.starprnt']
+              : ['text/vnd.star.markup'],
             jobToken: order.id,
           }),
         }
@@ -89,26 +94,28 @@ const handler: Handler = async (event) => {
       }
 
       // ── Test-receipt mode (font-size testing). Triggered by a marker in
-      //    special_instructions. Returns a sample receipt at a chosen size
-      //    variation, printed twice with a partial cut between copies. ──
+      //    special_instructions. Returns raw ESC/POS bytes (the TSP143IV
+      //    doesn't honor [mag] tags via CloudPRNT markup) printed twice
+      //    with a partial cut between copies. ──
       const testMatch = (order.special_instructions || '').match(/^__TEST_RECEIPT_V([123])__/)
       if (testMatch) {
         const variation = parseInt(testMatch[1], 10) as 1 | 2 | 3
         return {
           statusCode: 200,
-          headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
-          body: buildTestReceiptMarkup(variation),
+          headers: { ...headers, 'Content-Type': 'application/vnd.star.starprnt' },
+          body: buildRawTestVariation(variation),
+          isBase64Encoded: true,
         }
       }
 
-      // ── Size diagnostic: prints a single sheet showing every common
-      //    [mag] combination so we can see which sizes the printer
-      //    actually honors. ──
+      // ── Size diagnostic: one sheet sampling many character sizes via
+      //    raw ESC/POS so we can see exactly which sizes render. ──
       if ((order.special_instructions || '').startsWith('__TEST_DIAGNOSTIC__')) {
         return {
           statusCode: 200,
-          headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
-          body: buildDiagnosticReceipt(),
+          headers: { ...headers, 'Content-Type': 'application/vnd.star.starprnt' },
+          body: buildRawDiagnostic(),
+          isBase64Encoded: true,
         }
       }
 
@@ -236,12 +243,27 @@ const handler: Handler = async (event) => {
 
 export { handler }
 
-// ── Test-receipt builder ──────────────────────────────────────────────────────
-// Three font-size variations of a sample online order, used to pick the size
-// the shop wants on the real receipts. Each call returns markup that prints two
-// copies separated by a partial cut.
+// ── Raw ESC/POS test-receipt builders ────────────────────────────────────────
+// Sent as application/vnd.star.starprnt with isBase64Encoded:true. We use this
+// path because the TSP143IV ignores [mag] tags in markup mode, but reliably
+// honors raw GS!n size commands (which is also what scripts/print-server.js
+// uses over local TCP).
 
-type TestSpec = {
+const ESC = 0x1b
+const GS = 0x1d
+
+const RAW_INIT       = Buffer.from([ESC, 0x40])
+const RAW_ALIGN_C    = Buffer.from([ESC, 0x61, 0x01])
+const RAW_ALIGN_L    = Buffer.from([ESC, 0x61, 0x00])
+const RAW_BOLD_ON    = Buffer.from([ESC, 0x45, 0x01])
+const RAW_BOLD_OFF   = Buffer.from([ESC, 0x45, 0x00])
+const RAW_CUT        = Buffer.from([GS, 0x56, 0x42, 0x03]) // partial cut + feed
+const rawSize = (w: number, h: number): Buffer =>
+  Buffer.from([GS, 0x21, ((w - 1) << 4) | (h - 1)])
+const RAW_NORMAL = rawSize(1, 1)
+const t = (s: string): Buffer => Buffer.from(s, 'utf8')
+
+type RawSpec = {
   label: string
   header: [number, number]
   orderNum: [number, number]
@@ -250,88 +272,97 @@ type TestSpec = {
   cols: number
 }
 
-const TEST_SPECS: Record<1 | 2 | 3, TestSpec> = {
+const RAW_SPECS: Record<1 | 2 | 3, RawSpec> = {
   1: { label: 'VARIATION 1 (slightly bigger)',   header: [2, 2], orderNum: [2, 2], body: [1, 2], total: [2, 2], cols: 32 },
   2: { label: 'VARIATION 2 (noticeably bigger)', header: [2, 3], orderNum: [2, 2], body: [2, 2], total: [2, 3], cols: 16 },
   3: { label: 'VARIATION 3 (largest)',           header: [2, 3], orderNum: [2, 3], body: [2, 3], total: [2, 4], cols: 16 },
 }
 
-const TEST_ITEMS = [
+const RAW_ITEMS = [
   { qty: 2, name: 'Carne Asada Tacos',  price: 15.00, notes: ['add cheese, sour cream', 'NO onions'] },
   { qty: 1, name: 'California Burrito', price: 14.99, notes: ['EXTRA guacamole (+$1.50)'] },
   { qty: 1, name: 'Horchata',           price: 3.50,  notes: ['** large please'] },
 ]
 
-function padLeft(s: string, n: number): string {
+function padLeftStr(s: string, n: number): string {
   return s.length >= n ? s : ' '.repeat(n - s.length) + s
 }
 
-function padBetween(left: string, right: string, n: number): string {
+function padBetweenStr(left: string, right: string, n: number): string {
   const gap = Math.max(1, n - left.length - right.length)
   return left + ' '.repeat(gap) + right
 }
 
-function mag(w: number, h: number, text: string): string {
-  return `[mag: w ${w}; h ${h}]${text}[mag]`
-}
-
-function buildSingleTestReceipt(variation: 1 | 2 | 3): string {
-  const v = TEST_SPECS[variation]
-  const M = (txt: string) => mag(v.body[0], v.body[1], txt)
+function buildSingleRawTest(variation: 1 | 2 | 3): Buffer[] {
+  const v = RAW_SPECS[variation]
   const dashes = '-'.repeat(v.cols)
+  const parts: Buffer[] = []
 
-  let s = ''
-  s += `[align: center]\n`
-  s += `-- ${v.label} --\n`
-  s += `\n`
-  s += `${mag(v.header[0], v.header[1], '[bold: on]TACOS MIRANDA[bold: off]')}\n`
-  s += `\n`
-  s += `${mag(v.orderNum[0], v.orderNum[1], `[bold: on]ORDER TST${variation}[bold: off]`)}\n`
-  s += `\n`
-  s += `[align: left]\n`
-  s += `${M('[bold: on]Test Customer[bold: off]')}\n`
-  s += `${M('(714) 555-1234')}\n`
-  s += `${M('Today, 2:45 PM')}\n`
-  s += `\n`
-  s += `${M(dashes)}\n`
+  parts.push(RAW_INIT)
+  parts.push(RAW_ALIGN_C)
+  parts.push(RAW_NORMAL)
+  parts.push(t(`-- ${v.label} --\n\n`))
 
-  for (const item of TEST_ITEMS) {
-    s += `\n`
+  parts.push(rawSize(v.header[0], v.header[1]), RAW_BOLD_ON, t('TACOS MIRANDA\n'), RAW_BOLD_OFF)
+  parts.push(RAW_NORMAL, t('\n'))
+
+  parts.push(rawSize(v.orderNum[0], v.orderNum[1]), RAW_BOLD_ON, t(`ORDER TST${variation}\n`), RAW_BOLD_OFF)
+  parts.push(RAW_NORMAL, t('\n'))
+
+  parts.push(RAW_ALIGN_L)
+  parts.push(rawSize(v.body[0], v.body[1]))
+  parts.push(RAW_BOLD_ON, t('Test Customer\n'), RAW_BOLD_OFF)
+  parts.push(t('(714) 555-1234\n'))
+  parts.push(t('Today, 2:45 PM\n'))
+  parts.push(t('\n'))
+  parts.push(t(dashes + '\n'))
+
+  for (const item of RAW_ITEMS) {
+    parts.push(t('\n'))
     const priceStr = `$${item.price.toFixed(2)}`
+    parts.push(RAW_BOLD_ON)
     if (v.cols >= 28) {
-      s += `${M(`[bold: on]${padBetween(`${item.qty}x ${item.name}`, priceStr, v.cols)}[bold: off]`)}\n`
+      parts.push(t(padBetweenStr(`${item.qty}x ${item.name}`, priceStr, v.cols) + '\n'))
     } else {
-      s += `${M(`[bold: on]${item.qty}x ${item.name}[bold: off]`)}\n`
-      s += `${M(padLeft(priceStr, v.cols))}\n`
+      parts.push(t(`${item.qty}x ${item.name}\n`))
+      parts.push(t(padLeftStr(priceStr, v.cols) + '\n'))
     }
+    parts.push(RAW_BOLD_OFF)
     for (const note of item.notes) {
-      s += `${M(`  ${note}`)}\n`
+      parts.push(t(`  ${note}\n`))
     }
   }
 
-  s += `\n`
-  s += `${M(dashes)}\n`
-  s += `${M(padBetween('Subtotal', '$33.49', v.cols))}\n`
-  s += `${M(padBetween('Tax', '$2.93', v.cols))}\n`
-  s += `${mag(v.total[0], v.total[1], `[bold: on]TOTAL  $36.42[bold: off]`)}\n`
-  s += `\n`
-  s += `[align: center]\n`
-  s += `(657) 845-4011\n`
-  s += `21582 Brookhurst St\n`
-  s += `HB CA 92646\n`
-  s += `\n`
+  parts.push(t('\n'))
+  parts.push(t(dashes + '\n'))
+  parts.push(t(padBetweenStr('Subtotal', '$33.49', v.cols) + '\n'))
+  parts.push(t(padBetweenStr('Tax', '$2.93', v.cols) + '\n'))
 
-  return s
+  parts.push(rawSize(v.total[0], v.total[1]), RAW_BOLD_ON, t('TOTAL  $36.42\n'), RAW_BOLD_OFF)
+  parts.push(RAW_NORMAL)
+
+  parts.push(t('\n'))
+  parts.push(RAW_ALIGN_C)
+  parts.push(t('(657) 845-4011\n'))
+  parts.push(t('21582 Brookhurst St\n'))
+  parts.push(t('HB CA 92646\n'))
+  parts.push(t('\n\n'))
+
+  return parts
 }
 
-function buildTestReceiptMarkup(variation: 1 | 2 | 3): string {
-  const single = buildSingleTestReceipt(variation)
-  return single + `[cut: feed; partial]\n` + single + `[cut: feed; partial]\n`
+function buildRawTestVariation(variation: 1 | 2 | 3): string {
+  const single = buildSingleRawTest(variation)
+  const all = Buffer.concat([
+    ...single, RAW_CUT,
+    ...single, RAW_CUT,
+  ])
+  return all.toString('base64')
 }
 
-function buildDiagnosticReceipt(): string {
-  // Prints one sheet sampling many [mag] combinations so we can see what
-  // this printer actually supports. Each line labels its own size.
+function buildRawDiagnostic(): string {
+  // Print "Aa1Aa1" at many GS!n combinations so we can see which actually
+  // grow. Each row labels its own size.
   const combos: Array<[number, number]> = [
     [1, 1],
     [2, 1], [1, 2], [2, 2],
@@ -340,20 +371,18 @@ function buildDiagnosticReceipt(): string {
     [5, 2], [6, 2], [6, 6],
   ]
 
-  let s = ''
-  s += `[align: center]\n`
-  s += `== SIZE DIAGNOSTIC ==\n`
-  s += `\n`
-  s += `[align: left]\n`
+  const parts: Buffer[] = []
+  parts.push(RAW_INIT, RAW_ALIGN_C, RAW_NORMAL, t('== SIZE DIAGNOSTIC ==\n\n'))
+  parts.push(RAW_ALIGN_L)
+
+  // Baseline (1x1) for visual comparison.
+  parts.push(RAW_NORMAL, t('BASELINE 1x1: Aa1Aa1\n\n'))
+
   for (const [w, h] of combos) {
-    const label = `w${w} h${h}: Aa1`
-    s += `${mag(w, h, label)}\n`
+    parts.push(rawSize(w, h), t(`w${w} h${h}: Aa1\n`))
   }
-  s += `\n`
-  s += `[align: center]\n`
-  s += `== end ==\n`
-  s += `\n`
-  s += `[cut: feed; partial]\n`
-  return s
+
+  parts.push(RAW_NORMAL, t('\n'), RAW_ALIGN_C, t('== end ==\n\n'), RAW_CUT)
+  return Buffer.concat(parts).toString('base64')
 }
 
