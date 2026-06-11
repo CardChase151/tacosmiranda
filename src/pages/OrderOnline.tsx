@@ -127,7 +127,9 @@ function OrderContent() {
     if (linkRes.data) setMenuItemModifierGroups(linkRes.data)
     if (ingRes.data) setAllIngredients(ingRes.data)
     if (miiRes.data) setMenuItemIngredients(miiRes.data)
-    if (hoursRes.data) setOpenStatus(getOpenStatus(hoursRes.data as BusinessHourRow[]))
+    // 30-min buffer: stop accepting online orders 30 min before walk-in close
+    // so the kitchen has time to make the last order before shutting down.
+    if (hoursRes.data) setOpenStatus(getOpenStatus(hoursRes.data as BusinessHourRow[], 30))
     setOrderingEnabled(settingsRes.data?.ordering_enabled ?? true)
     setLoading(false)
   }, [])

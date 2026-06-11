@@ -64,8 +64,12 @@ export interface OpenStatus {
  * Computes whether the restaurant is currently open based on America/Los_Angeles time.
  * If the day is marked closed, isOpen is false. If parsing fails, defaults to OPEN
  * (fail-safe — better to take an order and call than refuse one).
+ *
+ * `closeBufferMin` shifts the effective close time earlier. Pass 30 from the online-
+ * ordering gate so we stop accepting orders 30 min before walk-in close (kitchen
+ * needs time to make the last order before shutting down).
  */
-export function getOpenStatus(rows: BusinessHourRow[]): OpenStatus {
+export function getOpenStatus(rows: BusinessHourRow[], closeBufferMin = 0): OpenStatus {
   if (!rows || rows.length === 0) return { isOpen: true }
 
   const { minutes, jsDay } = nowInLA()
@@ -83,7 +87,8 @@ export function getOpenStatus(rows: BusinessHourRow[]): OpenStatus {
       const open = parseTimeToMinutes(today.open_time)
       const close = parseTimeToMinutes(today.close_time)
       if (open !== null && close !== null) {
-        isOpen = minutes >= open && minutes < close
+        const effectiveClose = close - closeBufferMin
+        isOpen = minutes >= open && minutes < effectiveClose
       }
     }
   }
