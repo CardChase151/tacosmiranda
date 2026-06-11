@@ -199,14 +199,14 @@ function OrderContent() {
             <Moon size={26} color="var(--gold)" />
           </div>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, color: 'var(--white)', letterSpacing: 2, margin: '0 0 10px' }}>
-            We're closed right now
+            Online ordering is closed
           </h2>
           <p style={{ color: 'var(--gray)', fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>
             {!orderingEnabled
               ? 'Online ordering is paused right now. Please check back soon.'
               : openStatus?.nextOpenLabel
-                ? <>Online ordering reopens <strong style={{ color: 'var(--gold)' }}>{openStatus.nextOpenLabel}</strong>.</>
-                : 'Please come back during business hours.'}
+                ? <>Online ordering opens <strong style={{ color: 'var(--gold)' }}>{openStatus.nextOpenLabel}</strong>.</>
+                : 'Please check back during business hours.'}
           </p>
           {openStatus?.todayHoursLabel && (
             <p style={{ color: 'var(--gray)', fontSize: 12, opacity: 0.8, margin: '0 0 18px' }}>

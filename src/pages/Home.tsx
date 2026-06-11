@@ -6,6 +6,7 @@ import { MenuCategory, MenuItem } from '../types'
 import MenuSection from '../components/MenuSection'
 import RearrangeMenu from '../components/RearrangeMenu'
 import { generateMenuPdf } from '../utils/menuPdf'
+import { getOpenStatus, BusinessHourRow } from '../utils/businessHours'
 
 export default function Home() {
   const { isAdmin } = useAuth()
@@ -269,37 +270,78 @@ export default function Home() {
         }} />
 
 
-        {orderingEnabled && (
-          <a
-            href="/order"
-            style={{
-              marginTop: 32,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              padding: '16px 36px',
-              background: isBreakfast ? '#8B6914' : 'var(--gold)',
-              border: 'none',
-              borderRadius: 8,
-              color: isBreakfast ? '#FAF8F3' : 'var(--black)',
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: 1,
-              textDecoration: 'none',
-              textTransform: 'uppercase',
-              boxShadow: isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)',
-              transition: 'all 0.4s ease',
-              width: 'fit-content',
-              maxWidth: '90vw',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 6px 24px rgba(139,105,20,0.45)' : '0 6px 24px rgba(200,168,78,0.5)' }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)' }}
-          >
-            <ShoppingBag size={18} />
-            <span>Order Online</span>
-          </a>
-        )}
+        {orderingEnabled && (() => {
+          // Match the order-page gate (30-min buffer before close).
+          const status = getOpenStatus(hours as BusinessHourRow[], 30)
+          const isOpen = status.isOpen
+          if (isOpen) {
+            return (
+              <a
+                href="/order"
+                style={{
+                  marginTop: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  padding: '16px 36px',
+                  background: isBreakfast ? '#8B6914' : 'var(--gold)',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: isBreakfast ? '#FAF8F3' : 'var(--black)',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  textDecoration: 'none',
+                  textTransform: 'uppercase',
+                  boxShadow: isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)',
+                  transition: 'all 0.4s ease',
+                  width: 'fit-content',
+                  maxWidth: '90vw',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 6px 24px rgba(139,105,20,0.45)' : '0 6px 24px rgba(200,168,78,0.5)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isBreakfast ? '0 4px 16px rgba(139,105,20,0.3)' : '0 4px 16px rgba(200,168,78,0.3)' }}
+              >
+                <ShoppingBag size={18} />
+                <span>Order Online</span>
+              </a>
+            )
+          }
+          // Closed: show a muted CTA with the next opening time. Still links
+          // through to /order which shows the full closed-state explanation.
+          return (
+            <a
+              href="/order"
+              style={{
+                marginTop: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                padding: '14px 28px',
+                background: 'transparent',
+                border: '1px solid ' + (isBreakfast ? 'rgba(139,105,20,0.5)' : 'rgba(200,168,78,0.4)'),
+                borderRadius: 8,
+                color: isBreakfast ? '#8B6914' : 'var(--gold)',
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                textDecoration: 'none',
+                textTransform: 'none',
+                width: 'fit-content',
+                maxWidth: '90vw',
+                opacity: 0.85,
+              }}
+            >
+              <Clock size={16} />
+              <span>
+                {status.nextOpenLabel
+                  ? <>Online ordering opens {status.nextOpenLabel}</>
+                  : 'Online ordering is closed'}
+              </span>
+            </a>
+          )
+        })()}
 
       </section>
 
