@@ -127,6 +127,61 @@ export default function StaffClock() {
     }
   }, [])
 
+  // Kiosk lock-down: the tablet is wall-mounted and should behave like a
+  // fixed appliance. Kill pinch-zoom, double-tap zoom, scrolling, and the
+  // Android/Chrome overscroll rubber-band so nothing wiggles under a tap.
+  // Scoped to this page only (restored on unmount) so the public site keeps
+  // normal zoom/scroll.
+  useEffect(() => {
+    // 1. Disable pinch + double-tap zoom via the viewport meta.
+    const vp = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
+    const prevVp = vp?.content
+    if (vp) {
+      vp.content =
+        'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'
+    }
+
+    // 2. Pin the page so nothing scrolls or rubber-bands.
+    const html = document.documentElement
+    const bodyEl = document.body
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: bodyEl.style.overflow,
+      bodyPosition: bodyEl.style.position,
+      bodyWidth: bodyEl.style.width,
+      bodyHeight: bodyEl.style.height,
+      bodyOverscroll: bodyEl.style.overscrollBehavior,
+      bodyTouch: bodyEl.style.touchAction,
+    }
+    html.style.overflow = 'hidden'
+    bodyEl.style.overflow = 'hidden'
+    bodyEl.style.position = 'fixed'
+    bodyEl.style.width = '100%'
+    bodyEl.style.height = '100%'
+    bodyEl.style.overscrollBehavior = 'none'
+    bodyEl.style.touchAction = 'none'
+
+    // 3. Belt-and-suspenders: cancel any multi-touch (pinch) gesture and the
+    //    Safari gesture events that the viewport meta can't reach.
+    const preventMulti = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+    const preventGesture = (e: Event) => e.preventDefault()
+    document.addEventListener('touchmove', preventMulti, { passive: false })
+    document.addEventListener('gesturestart', preventGesture)
+
+    return () => {
+      if (vp && prevVp != null) vp.content = prevVp
+      html.style.overflow = prev.htmlOverflow
+      bodyEl.style.overflow = prev.bodyOverflow
+      bodyEl.style.position = prev.bodyPosition
+      bodyEl.style.width = prev.bodyWidth
+      bodyEl.style.height = prev.bodyHeight
+      bodyEl.style.overscrollBehavior = prev.bodyOverscroll
+      bodyEl.style.touchAction = prev.bodyTouch
+      document.removeEventListener('touchmove', preventMulti)
+      document.removeEventListener('gesturestart', preventGesture)
+    }
+  }, [])
+
   // Auto-reset to idle after any terminal state. Errors stay longer so the
   // reader has time to scan coords/distance for debugging.
   useEffect(() => {
@@ -291,13 +346,20 @@ export default function StaffClock() {
 
   // ─── styles ────────────────────────────────────────────────────────────────
   const page: React.CSSProperties = {
-    minHeight: '100vh',
+    position: 'fixed',
+    inset: 0,
+    height: '100%',
+    width: '100%',
     background: '#0a0a0a',
     color: '#fff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    boxSizing: 'border-box',
+    overflow: 'hidden',
+    touchAction: 'none',
+    overscrollBehavior: 'none',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     userSelect: 'none',
     WebkitUserSelect: 'none',
