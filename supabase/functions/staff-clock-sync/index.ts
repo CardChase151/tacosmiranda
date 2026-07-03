@@ -4,6 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // Accepts a batch of device-owned shift rows and upserts them into time_clock
 // by id. Because the device generates each shift's UUID, re-sending the same
 // shift is idempotent — no duplicate punches if a sync is retried.
+// Also accepts `acks`: shift ids whose forgotten-clock-out warning the staff
+// member acknowledged at the kiosk. Sets ack_at once; re-sends are no-ops.
 //
 // Trust model: the geofence + PIN checks already happened on-device at punch
 // time, and the device only holds the obscure kiosk URL. We store the recorded
@@ -43,8 +45,26 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid request' }, 400)
   }
 
-  const shifts = Array.isArray(body?.shifts) ? body.shifts : null
-  if (!shifts) return json({ error: 'shifts array required' }, 400)
+  const shifts = Array.isArray(body?.shifts) ? body.shifts : []
+  const ackIds: string[] = Array.isArray(body?.acks)
+    ? body.acks.filter((id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id))
+    : []
+  if (!Array.isArray(body?.shifts) && ackIds.length === 0) {
+    return json({ error: 'shifts array required' }, 400)
+  }
+
+  let acked: string[] = []
+  if (ackIds.length > 0) {
+    const { error: ackErr } = await supabase
+      .from('time_clock')
+      .update({ ack_at: new Date().toISOString() })
+      .in('id', ackIds)
+      .eq('auto_closed', true)
+      .is('ack_at', null)
+    // Treat the whole batch as acknowledged even if some rows were already
+    // acked or admin-deleted — the device just needs to stop re-sending them.
+    if (!ackErr) acked = ackIds
+  }
 
   const rows: any[] = []
   const accepted: string[] = []
@@ -68,11 +88,11 @@ Deno.serve(async (req) => {
   }
 
   if (rows.length === 0) {
-    return json({ ok: true, synced: [], server_time: new Date().toISOString() })
+    return json({ ok: true, synced: [], acked, server_time: new Date().toISOString() })
   }
 
   const { error } = await supabase.from('time_clock').upsert(rows, { onConflict: 'id' })
   if (error) return json({ error: 'Sync failed', detail: error.message }, 500)
 
-  return json({ ok: true, synced: accepted, server_time: new Date().toISOString() })
+  return json({ ok: true, synced: accepted, acked, server_time: new Date().toISOString() })
 })

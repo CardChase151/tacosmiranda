@@ -19,7 +19,7 @@ import ItemCustomizer from '../components/order/ItemCustomizer'
 import CartDrawer from '../components/order/CartDrawer'
 import OrderCheckout from '../components/order/OrderCheckout'
 import OrderUpsell, { computeUpsellMissing } from '../components/order/OrderUpsell'
-import { getOpenStatus, BusinessHourRow, OpenStatus } from '../utils/businessHours'
+import { getOpenStatus, BusinessHourRow, OpenStatus, SpecialHourRow, laDateString } from '../utils/businessHours'
 import { useAuth } from '../context/AuthContext'
 import { ShoppingCart, Undo2, Redo2, ArrowLeft, Plus, Moon } from 'lucide-react'
 
@@ -109,7 +109,7 @@ function OrderContent() {
   }, [reorderLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async () => {
-    const [catRes, itemRes, mgRes, modRes, linkRes, ingRes, miiRes, hoursRes, settingsRes] = await Promise.all([
+    const [catRes, itemRes, mgRes, modRes, linkRes, ingRes, miiRes, hoursRes, settingsRes, specialRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
       supabase.from('menu_items').select('*').eq('is_86', false).order('sort_order'),
       supabase.from('modifier_groups').select('*').order('sort_order'),
@@ -119,6 +119,7 @@ function OrderContent() {
       supabase.from('menu_item_ingredients').select('*').order('sort_order'),
       supabase.from('business_hours').select('*').order('day_order'),
       supabase.from('site_settings').select('ordering_enabled').eq('id', 'main').maybeSingle(),
+      supabase.from('special_hours').select('*').gte('date', laDateString()).order('date'),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
@@ -129,7 +130,14 @@ function OrderContent() {
     if (miiRes.data) setMenuItemIngredients(miiRes.data)
     // 30-min buffer: stop accepting online orders 30 min before walk-in close
     // so the kitchen has time to make the last order before shutting down.
-    if (hoursRes.data) setOpenStatus(getOpenStatus(hoursRes.data as BusinessHourRow[], 30))
+    // Special one-off dates (holiday hours) override the weekly schedule.
+    if (hoursRes.data) {
+      setOpenStatus(getOpenStatus(
+        hoursRes.data as BusinessHourRow[],
+        30,
+        (specialRes.data as SpecialHourRow[]) || [],
+      ))
+    }
     setOrderingEnabled(settingsRes.data?.ordering_enabled ?? true)
     setLoading(false)
   }, [])

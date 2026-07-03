@@ -6,7 +6,22 @@ import { MenuCategory, MenuItem } from '../types'
 import MenuSection from '../components/MenuSection'
 import RearrangeMenu from '../components/RearrangeMenu'
 import { generateMenuPdf } from '../utils/menuPdf'
-import { getOpenStatus, BusinessHourRow } from '../utils/businessHours'
+import { getOpenStatus, BusinessHourRow, SpecialHourRow, laDateString } from '../utils/businessHours'
+
+// Draft row for the special-hours editor (no id until saved).
+type TempSpecial = {
+  id?: string
+  date: string
+  label: string
+  is_closed: boolean
+  open_time: string
+  close_time: string
+}
+
+function fmtSpecialDate(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00`)
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
 export default function Home() {
   const { isAdmin } = useAuth()
@@ -26,6 +41,9 @@ export default function Home() {
   const [editingHours, setEditingHours] = useState(false)
   const [tempHours, setTempHours] = useState<any[]>([])
   const [tempNote, setTempNote] = useState('')
+  const [specials, setSpecials] = useState<SpecialHourRow[]>([])
+  const [tempSpecials, setTempSpecials] = useState<TempSpecial[]>([])
+  const [removedSpecialIds, setRemovedSpecialIds] = useState<string[]>([])
   const [promoEnabled, setPromoEnabled] = useState(false)
   const [promoTitle, setPromoTitle] = useState('')
   const [promoItems, setPromoItems] = useState('')
@@ -37,15 +55,17 @@ export default function Home() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const fetchMenu = useCallback(async () => {
-    const [catRes, itemRes, hoursRes, settingsRes] = await Promise.all([
+    const [catRes, itemRes, hoursRes, settingsRes, specialRes] = await Promise.all([
       supabase.from('menu_categories').select('*').order('sort_order'),
       supabase.from('menu_items').select('*').order('sort_order'),
       supabase.from('business_hours').select('*').order('day_order'),
       supabase.from('site_settings').select('*').eq('id', 'main').single(),
+      supabase.from('special_hours').select('*').gte('date', laDateString()).order('date'),
     ])
     if (catRes.data) setCategories(catRes.data)
     if (itemRes.data) setItems(itemRes.data)
     if (hoursRes.data) setHours(hoursRes.data)
+    if (specialRes.data) setSpecials(specialRes.data as SpecialHourRow[])
     if (settingsRes.data) {
       setHoursNote(settingsRes.data.hours_note)
       setPromoEnabled(settingsRes.data.promo_enabled ?? false)
@@ -272,7 +292,7 @@ export default function Home() {
 
         {orderingEnabled && (() => {
           // Match the order-page gate (30-min buffer before close).
-          const status = getOpenStatus(hours as BusinessHourRow[], 30)
+          const status = getOpenStatus(hours as BusinessHourRow[], 30, specials)
           const isOpen = status.isOpen
           if (isOpen) {
             return (
@@ -656,6 +676,89 @@ export default function Home() {
                       color: 'var(--white)', padding: '6px 10px', fontSize: 13, outline: 'none', width: '100%', marginTop: 6,
                     }}
                   />
+
+                  {/* One-off dates: holiday hours / early closes. Override the
+                      weekly schedule for their date, then expire on their own. */}
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600, marginBottom: 6 }}>
+                      One-off dates (holidays, early closes)
+                    </div>
+                    {tempSpecials.map((sp, i) => (
+                      <div key={sp.id || `new-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            type="date"
+                            value={sp.date}
+                            onChange={e => { const u = [...tempSpecials]; u[i] = { ...u[i], date: e.target.value }; setTempSpecials(u) }}
+                            style={{
+                              background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                              color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: 130,
+                            }}
+                          />
+                          {sp.is_closed ? (
+                            <span style={{ fontSize: 13, color: 'var(--gray)', fontStyle: 'italic', flex: 1 }}>Closed</span>
+                          ) : (
+                            <>
+                              <input
+                                value={sp.open_time}
+                                onChange={e => { const u = [...tempSpecials]; u[i] = { ...u[i], open_time: e.target.value }; setTempSpecials(u) }}
+                                style={{
+                                  background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                                  color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: 70,
+                                }}
+                              />
+                              <span style={{ color: 'var(--gray)', fontSize: 12 }}>-</span>
+                              <input
+                                value={sp.close_time}
+                                onChange={e => { const u = [...tempSpecials]; u[i] = { ...u[i], close_time: e.target.value }; setTempSpecials(u) }}
+                                style={{
+                                  background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                                  color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: 70,
+                                }}
+                              />
+                            </>
+                          )}
+                          <button
+                            onClick={() => { const u = [...tempSpecials]; u[i] = { ...u[i], is_closed: !u[i].is_closed }; setTempSpecials(u) }}
+                            style={{
+                              background: 'none', border: 'none', fontSize: 10, cursor: 'pointer',
+                              color: sp.is_closed ? 'var(--gold)' : '#ef4444', opacity: 0.7,
+                            }}
+                          >{sp.is_closed ? 'Open' : 'Close'}</button>
+                          <button
+                            onClick={() => {
+                              if (sp.id) setRemovedSpecialIds([...removedSpecialIds, sp.id])
+                              setTempSpecials(tempSpecials.filter((_, j) => j !== i))
+                            }}
+                            title="Remove"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2, display: 'flex' }}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                        <input
+                          value={sp.label}
+                          onChange={e => { const u = [...tempSpecials]; u[i] = { ...u[i], label: e.target.value }; setTempSpecials(u) }}
+                          placeholder="Label (e.g. Independence Day)"
+                          style={{
+                            background: 'var(--dark-input)', border: '1px solid var(--border)', borderRadius: 4,
+                            color: 'var(--white)', padding: '4px 8px', fontSize: 12, outline: 'none', width: '100%',
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setTempSpecials([
+                        ...tempSpecials,
+                        { date: '', label: '', is_closed: false, open_time: '7 AM', close_time: '9 PM' },
+                      ])}
+                      style={{
+                        background: 'none', border: '1px dashed var(--border)', borderRadius: 6,
+                        color: 'var(--gold)', padding: '4px 12px', fontSize: 11, cursor: 'pointer', opacity: 0.8,
+                      }}
+                    >+ Add date</button>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                     <button
                       onClick={async () => {
@@ -665,6 +768,21 @@ export default function Home() {
                           }).eq('id', h.id)
                         }
                         await supabase.from('site_settings').update({ hours_note: tempNote }).eq('id', 'main')
+                        for (const id of removedSpecialIds) {
+                          await supabase.from('special_hours').delete().eq('id', id)
+                        }
+                        for (const sp of tempSpecials) {
+                          if (!sp.date) continue
+                          const payload = {
+                            date: sp.date, label: sp.label.trim(),
+                            is_closed: sp.is_closed, open_time: sp.open_time, close_time: sp.close_time,
+                          }
+                          if (sp.id) await supabase.from('special_hours').update(payload).eq('id', sp.id)
+                          else await supabase.from('special_hours').upsert(payload, { onConflict: 'date' })
+                        }
+                        const { data: freshSpecials } = await supabase
+                          .from('special_hours').select('*').gte('date', laDateString()).order('date')
+                        setSpecials((freshSpecials as SpecialHourRow[]) || [])
                         setHours(tempHours)
                         setHoursNote(tempNote)
                         setEditingHours(false)
@@ -704,12 +822,32 @@ export default function Home() {
                       </div>
                     ))
                   })()}
+                  {specials.length > 0 && (
+                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid ' + (isBreakfast ? '#e5ddc9' : 'var(--border)') }}>
+                      {specials.map(sp => (
+                        <div key={sp.id} style={{ display: 'flex', justifyContent: 'space-between', lineHeight: 2 }}>
+                          <span style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)' }}>
+                            {fmtSpecialDate(sp.date)}{sp.label ? ` · ${sp.label}` : ''}
+                          </span>
+                          <span style={{ color: sp.is_closed ? '#ef4444' : (isBreakfast ? '#1a1a1a' : 'var(--white)'), fontWeight: 600 }}>
+                            {sp.is_closed ? 'Closed' : `${sp.open_time} - ${sp.close_time}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {hoursNote && (
                     <p style={{ color: isBreakfast ? '#8B6914' : 'var(--gold)', fontSize: 13, marginTop: 8, fontStyle: 'italic', transition: 'color 0.4s ease' }}>{hoursNote}</p>
                   )}
                   {isAdmin && (
                     <button
-                      onClick={() => { setTempHours(hours.map(h => ({ ...h }))); setTempNote(hoursNote); setEditingHours(true) }}
+                      onClick={() => {
+                        setTempHours(hours.map(h => ({ ...h })))
+                        setTempNote(hoursNote)
+                        setTempSpecials(specials.map(s => ({ ...s })))
+                        setRemovedSpecialIds([])
+                        setEditingHours(true)
+                      }}
                       style={{
                         background: 'none', border: '1px dashed var(--border)', borderRadius: 6,
                         color: 'var(--gold)', padding: '4px 12px', fontSize: 11, marginTop: 10, cursor: 'pointer',

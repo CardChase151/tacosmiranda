@@ -9,6 +9,29 @@ export interface BusinessHourRow {
   is_closed: boolean
 }
 
+// One-off date override (holiday hours, early close). Takes priority over the
+// weekly schedule for its date, everywhere: site display AND the online-order
+// gate. Rows for past dates are simply ignored, so they expire on their own.
+export interface SpecialHourRow {
+  id: string
+  date: string // 'YYYY-MM-DD' (America/Los_Angeles calendar date)
+  label: string
+  is_closed: boolean
+  open_time: string
+  close_time: string
+}
+
+/** Today's (or today+offset days') calendar date in America/Los_Angeles as 'YYYY-MM-DD'. */
+export function laDateString(offsetDays = 0): string {
+  const d = new Date(Date.now() + offsetDays * 86_400_000)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+}
+
 /** Parses "7 AM" / "9:30 PM" / "12 PM" → minutes since midnight (0..1439). */
 export function parseTimeToMinutes(text: string): number | null {
   if (!text) return null
@@ -60,6 +83,27 @@ export interface OpenStatus {
   todayHoursLabel?: string
 }
 
+/** Effective hours for a given day: the special-date override if one exists, else the weekly row. */
+function effectiveHours(
+  rows: BusinessHourRow[],
+  specials: SpecialHourRow[],
+  todayDayOrder: number,
+  offsetDays: number,
+): { is_closed: boolean; open_time: string; close_time: string } | null {
+  const special = specials.find(s => s.date === laDateString(offsetDays))
+  if (special) return special
+  const row = rows.find(r => r.day_order === (todayDayOrder + offsetDays) % 7)
+  return row || null
+}
+
+/** Weekday name in LA for today+offset days, for "reopens Saturday at 7 AM" labels. */
+function laWeekdayName(offsetDays: number): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long',
+  }).format(new Date(Date.now() + offsetDays * 86_400_000))
+}
+
 /**
  * Computes whether the restaurant is currently open based on America/Los_Angeles time.
  * If the day is marked closed, isOpen is false. If parsing fails, defaults to OPEN
@@ -68,13 +112,20 @@ export interface OpenStatus {
  * `closeBufferMin` shifts the effective close time earlier. Pass 30 from the online-
  * ordering gate so we stop accepting orders 30 min before walk-in close (kitchen
  * needs time to make the last order before shutting down).
+ *
+ * `specials` are one-off date overrides (holidays, early closes); when a row
+ * matches today's LA date it wins over the weekly schedule.
  */
-export function getOpenStatus(rows: BusinessHourRow[], closeBufferMin = 0): OpenStatus {
-  if (!rows || rows.length === 0) return { isOpen: true }
+export function getOpenStatus(
+  rows: BusinessHourRow[],
+  closeBufferMin = 0,
+  specials: SpecialHourRow[] = [],
+): OpenStatus {
+  if ((!rows || rows.length === 0) && specials.length === 0) return { isOpen: true }
 
   const { minutes, jsDay } = nowInLA()
   const todayDayOrder = jsDayToDayOrder(jsDay)
-  const today = rows.find(r => r.day_order === todayDayOrder)
+  const today = effectiveHours(rows || [], specials, todayDayOrder, 0)
 
   let isOpen = true
   let todayHoursLabel: string | undefined
@@ -95,22 +146,21 @@ export function getOpenStatus(rows: BusinessHourRow[], closeBufferMin = 0): Open
 
   if (isOpen) return { isOpen: true, todayHoursLabel }
 
-  // Find next opening day.
+  // Find next opening day (special overrides considered for each future date).
   let nextOpenLabel: string | undefined
   for (let i = 0; i < 7; i++) {
-    const lookDayOrder = (todayDayOrder + (i === 0 ? 0 : i)) % 7
-    const row = rows.find(r => r.day_order === lookDayOrder)
-    if (!row || row.is_closed) continue
-    // For today (i=0), only count if we haven't reached close yet *and* current time is before open.
+    const eff = effectiveHours(rows || [], specials, todayDayOrder, i)
+    if (!eff || eff.is_closed) continue
+    // For today (i=0), only count if current time is before open.
     if (i === 0) {
-      const open = parseTimeToMinutes(row.open_time)
+      const open = parseTimeToMinutes(eff.open_time)
       if (open !== null && minutes < open) {
-        nextOpenLabel = `today at ${row.open_time}`
+        nextOpenLabel = `today at ${eff.open_time}`
         break
       }
       continue
     }
-    nextOpenLabel = i === 1 ? `tomorrow at ${row.open_time}` : `${row.day_name} at ${row.open_time}`
+    nextOpenLabel = i === 1 ? `tomorrow at ${eff.open_time}` : `${laWeekdayName(i)} at ${eff.open_time}`
     break
   }
 

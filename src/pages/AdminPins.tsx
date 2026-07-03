@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { Plus, Pencil, Power, PowerOff, Trash2, Users, Clock, AlertCircle, X } from 'lucide-react'
+import { Plus, Pencil, Power, PowerOff, Trash2, Users, Clock, AlertCircle, AlertTriangle, X, RotateCcw } from 'lucide-react'
 
 type Staff = {
   id: string
@@ -11,6 +11,7 @@ type Staff = {
   hourly_rate: number | null
   active: boolean
   created_at: string
+  strikes_reset_at: string | null
 }
 
 type Shift = {
@@ -18,6 +19,8 @@ type Shift = {
   staff_id: string
   clock_in_at: string
   clock_out_at: string | null
+  auto_closed: boolean
+  edited_at: string | null
 }
 
 type Range = 'today' | 'week' | 'month' | 'all'
@@ -58,6 +61,18 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// ISO ↔ <input type="datetime-local"> (browser-local time, which is LA here).
+function toLocalInput(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function fromLocalInput(value: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 export default function AdminPins() {
   const { user, isAdmin, loading } = useAuth()
   const [staff, setStaff] = useState<Staff[]>([])
@@ -66,13 +81,16 @@ export default function AdminPins() {
   const [range, setRange] = useState<Range>('week')
   const [editing, setEditing] = useState<Partial<Staff> | null>(null)
   const [busy, setBusy] = useState(false)
+  // Shift being corrected: datetime-local strings, '' out = still open.
+  const [editingShift, setEditingShift] = useState<{ id: string; inVal: string; outVal: string; auto_closed: boolean } | null>(null)
+  const [strikes, setStrikes] = useState(0)
 
   const selected = useMemo(() => staff.find((s) => s.id === selectedId) || null, [staff, selectedId])
 
   const fetchStaff = async () => {
     const { data } = await supabase
       .from('staff')
-      .select('id, first_name, last_name, pin, hourly_rate, active, created_at')
+      .select('id, first_name, last_name, pin, hourly_rate, active, created_at, strikes_reset_at')
       .order('first_name')
     setStaff((data as Staff[]) || [])
   }
@@ -81,11 +99,24 @@ export default function AdminPins() {
     const since = startOf(range).toISOString()
     const { data } = await supabase
       .from('time_clock')
-      .select('id, staff_id, clock_in_at, clock_out_at')
+      .select('id, staff_id, clock_in_at, clock_out_at, auto_closed, edited_at')
       .eq('staff_id', staffId)
       .gte('clock_in_at', since)
       .order('clock_in_at', { ascending: false })
     setShifts((data as Shift[]) || [])
+  }
+
+  // Forgotten clock-outs since the last strike reset — independent of the
+  // visible date range, so the count matches what the kiosk shows staff.
+  const fetchStrikes = async (staffId: string, resetAt: string | null) => {
+    let q = supabase
+      .from('time_clock')
+      .select('id', { count: 'exact', head: true })
+      .eq('staff_id', staffId)
+      .eq('auto_closed', true)
+    if (resetAt) q = q.gt('clock_in_at', resetAt)
+    const { count } = await q
+    setStrikes(count || 0)
   }
 
   useEffect(() => {
@@ -96,6 +127,11 @@ export default function AdminPins() {
     if (selectedId) fetchShifts(selectedId)
     else setShifts([])
   }, [selectedId, range])
+
+  useEffect(() => {
+    if (selected) fetchStrikes(selected.id, selected.strikes_reset_at)
+    else setStrikes(0)
+  }, [selected])
 
   const openCreate = () => {
     setEditing({
@@ -159,6 +195,54 @@ export default function AdminPins() {
     await supabase.from('staff').delete().eq('id', s.id)
     if (selectedId === s.id) setSelectedId(null)
     fetchStaff()
+  }
+
+  // ─── shift corrections ─────────────────────────────────────────────────────
+  const openShiftEdit = (sh: Shift, prefillOutNow = false) => {
+    setEditingShift({
+      id: sh.id,
+      inVal: toLocalInput(sh.clock_in_at),
+      outVal: sh.clock_out_at ? toLocalInput(sh.clock_out_at) : (prefillOutNow ? toLocalInput(new Date().toISOString()) : ''),
+      auto_closed: sh.auto_closed,
+    })
+  }
+
+  const saveShift = async () => {
+    if (!editingShift || !selectedId) return
+    const inIso = fromLocalInput(editingShift.inVal)
+    const outIso = fromLocalInput(editingShift.outVal)
+    if (!inIso) { alert('Clock-in time is required.'); return }
+    if (editingShift.outVal && !outIso) { alert('Clock-out time is invalid.'); return }
+    if (outIso && outIso <= inIso) { alert('Clock-out must be after clock-in.'); return }
+    setBusy(true)
+    const { error } = await supabase
+      .from('time_clock')
+      .update({ clock_in_at: inIso, clock_out_at: outIso, edited_at: new Date().toISOString() })
+      .eq('id', editingShift.id)
+    setBusy(false)
+    if (error) { alert(error.message || 'Save failed'); return }
+    setEditingShift(null)
+    fetchShifts(selectedId)
+  }
+
+  const deleteShift = async () => {
+    if (!editingShift || !selectedId) return
+    if (!window.confirm('Delete this shift entry? This cannot be undone.')) return
+    setBusy(true)
+    const { error } = await supabase.from('time_clock').delete().eq('id', editingShift.id)
+    setBusy(false)
+    if (error) { alert(error.message || 'Delete failed'); return }
+    setEditingShift(null)
+    fetchShifts(selectedId)
+    if (selected) fetchStrikes(selected.id, selected.strikes_reset_at)
+  }
+
+  const resetStrikes = async () => {
+    if (!selected) return
+    if (!window.confirm(`Reset forgotten clock-out count for ${selected.first_name}?`)) return
+    await supabase.from('staff').update({ strikes_reset_at: new Date().toISOString() }).eq('id', selected.id)
+    await fetchStaff()
+    fetchStrikes(selected.id, new Date().toISOString())
   }
 
   // ─── totals ────────────────────────────────────────────────────────────────
@@ -313,7 +397,7 @@ export default function AdminPins() {
                   ))}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
                   <div style={{ background: '#121212', border: '1px solid #222', borderRadius: 10, padding: 14 }}>
                     <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, marginBottom: 6 }}>HOURS</div>
                     <div style={{ fontSize: 22, fontWeight: 800 }}>{closedHours.toFixed(2)}</div>
@@ -328,6 +412,19 @@ export default function AdminPins() {
                     <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, marginBottom: 6 }}>OPEN SHIFTS</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: openCount > 0 ? '#f59e0b' : '#fff' }}>
                       {openCount}
+                    </div>
+                  </div>
+                  <div style={{ background: '#121212', border: '1px solid ' + (strikes > 0 ? '#7c4a00' : '#222'), borderRadius: 10, padding: 14 }}>
+                    <div style={{ fontSize: 11, color: '#888', letterSpacing: 1, marginBottom: 6 }}>FORGOT CLOCK-OUT</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: strikes >= 3 ? '#ef4444' : strikes > 0 ? '#f59e0b' : '#fff' }}>
+                        {strikes}
+                      </div>
+                      {strikes > 0 && (
+                        <button onClick={resetStrikes} title="Reset count" style={{ ...ghostBtn, padding: '4px 8px', fontSize: 11 }}>
+                          <RotateCcw size={12} /> Reset
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -351,15 +448,34 @@ export default function AdminPins() {
                           borderRadius: 10,
                           padding: 12,
                           display: 'grid',
-                          gridTemplateColumns: '140px 1fr auto',
+                          gridTemplateColumns: '140px 1fr auto auto',
                           gap: 12,
                           alignItems: 'center',
                         }}
                       >
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtDate(sh.clock_in_at)}</div>
-                        <div style={{ fontSize: 13, color: '#bbb' }}>
-                          In {fmtTime(sh.clock_in_at)}
-                          {sh.clock_out_at && <> &nbsp;·&nbsp; Out {fmtTime(sh.clock_out_at)}</>}
+                        <div style={{ fontSize: 13, color: '#bbb', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span>
+                            In {fmtTime(sh.clock_in_at)}
+                            {sh.clock_out_at && <> &nbsp;·&nbsp; Out {fmtTime(sh.clock_out_at)}</>}
+                          </span>
+                          {sh.auto_closed && (
+                            <span
+                              title="Forgot to clock out — capped at 10 PM automatically"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+                                color: '#f59e0b', background: '#2a1e08', border: '1px solid #7c4a00',
+                                borderRadius: 6, padding: '2px 6px', letterSpacing: 0.5,
+                              }}
+                            >
+                              <AlertTriangle size={10} /> AUTO
+                            </span>
+                          )}
+                          {sh.edited_at && (
+                            <span title={`Corrected by admin ${fmtDate(sh.edited_at)}`} style={{ fontSize: 10, color: '#777', fontStyle: 'italic' }}>
+                              edited
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: open ? '#f59e0b' : '#fff' }}>
                           {open ? (
@@ -370,6 +486,20 @@ export default function AdminPins() {
                             `${hrs!.toFixed(2)} hrs`
                           )}
                         </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {open && (
+                            <button
+                              onClick={() => openShiftEdit(sh, true)}
+                              title="Set clock-out time"
+                              style={{ ...ghostBtn, padding: '5px 9px', fontSize: 11, borderColor: '#7c4a00', color: '#f59e0b' }}
+                            >
+                              Set out
+                            </button>
+                          )}
+                          <button onClick={() => openShiftEdit(sh)} title="Edit shift" style={{ ...ghostBtn, padding: 6 }}>
+                            <Pencil size={13} />
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
@@ -379,6 +509,86 @@ export default function AdminPins() {
           </div>
         </div>
       </div>
+
+      {/* ─── Shift correction modal ───────────────────────────────────────── */}
+      {editingShift && (
+        <div
+          onClick={() => setEditingShift(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 440, background: '#161616',
+              border: '1px solid #2a2a2a', borderRadius: 16, padding: 24,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>Edit Shift</div>
+              <button onClick={() => setEditingShift(null)} style={{ ...ghostBtn, padding: 6 }}>
+                <X size={16} />
+              </button>
+            </div>
+            {editingShift.auto_closed && (
+              <div style={{ fontSize: 12, color: '#f59e0b', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={12} /> Auto-closed at 10 PM — set the real clock-out time below.
+              </div>
+            )}
+
+            <Field label="Clock in">
+              <input
+                type="datetime-local"
+                value={editingShift.inVal}
+                onChange={(e) => setEditingShift({ ...editingShift, inVal: e.target.value })}
+                style={{
+                  width: '100%', background: '#0a0a0a', color: '#fff', border: '1px solid #2a2a2a',
+                  borderRadius: 8, padding: '10px 12px', fontSize: 14, boxSizing: 'border-box', colorScheme: 'dark',
+                }}
+              />
+            </Field>
+            <Field label="Clock out (leave empty to keep the shift open)">
+              <input
+                type="datetime-local"
+                value={editingShift.outVal}
+                onChange={(e) => setEditingShift({ ...editingShift, outVal: e.target.value })}
+                style={{
+                  width: '100%', background: '#0a0a0a', color: '#fff', border: '1px solid #2a2a2a',
+                  borderRadius: 8, padding: '10px 12px', fontSize: 14, boxSizing: 'border-box', colorScheme: 'dark',
+                }}
+              />
+            </Field>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+              <button
+                onClick={deleteShift}
+                disabled={busy}
+                style={{
+                  ...ghostBtn, justifyContent: 'center', padding: '12px 14px',
+                  borderColor: '#3a1a1a', color: '#ef4444', opacity: busy ? 0.6 : 1,
+                }}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+              <button
+                onClick={() => setEditingShift(null)}
+                style={{ ...ghostBtn, flex: 1, justifyContent: 'center', padding: '12px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveShift}
+                disabled={busy}
+                style={{ ...btn, flex: 1, justifyContent: 'center', padding: '12px', opacity: busy ? 0.6 : 1 }}
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Edit / Create modal ──────────────────────────────────────────── */}
       {editing && (

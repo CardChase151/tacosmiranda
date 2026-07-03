@@ -17,6 +17,8 @@ const LS_ROSTER_KEY = 'tacos_clock_roster'      // cached staff + PINs
 const LS_GEOFENCE_KEY = 'tacos_clock_geofence'  // cached allowed locations
 const LS_SHIFTS_KEY = 'tacos_clock_shifts'      // device-owned shift ledger
 const LS_LAST_SYNC_KEY = 'tacos_clock_last_sync'// ISO of last successful sync
+const LS_ACKS_KEY = 'tacos_clock_pending_acks'  // server-flagged forgotten clock-outs awaiting acknowledgment
+const LS_ACK_QUEUE_KEY = 'tacos_clock_ack_queue'// acknowledged shift ids not yet synced
 
 const PIN_LENGTH = 6
 const RESET_MS = 4000
@@ -69,6 +71,14 @@ function getGeofence(): GeoLoc[] {
 }
 function getShifts(): Shift[] { return readJSON<Shift[]>(LS_SHIFTS_KEY, []) }
 function setShifts(shifts: Shift[]) { writeJSON(LS_SHIFTS_KEY, shifts) }
+
+// Forgotten-clock-out acknowledgments. The server flags auto-closed shifts;
+// the staff member must check a confirmation box on their next PIN entry.
+type PendingAcks = Record<string, { strike: number; shift_ids: string[] }>
+function getPendingAcks(): PendingAcks { return readJSON<PendingAcks>(LS_ACKS_KEY, {}) }
+function setPendingAcks(acks: PendingAcks) { writeJSON(LS_ACKS_KEY, acks) }
+function getAckQueue(): string[] { return readJSON<string[]>(LS_ACK_QUEUE_KEY, []) }
+function setAckQueue(ids: string[]) { writeJSON(LS_ACK_QUEUE_KEY, ids) }
 function getLastSync(): number | null {
   const raw = readJSON<string | null>(LS_LAST_SYNC_KEY, null)
   if (!raw) return null
@@ -156,9 +166,11 @@ function authHeaders(anonKey: string) {
   }
 }
 
-// Pull roster + geofence + open shifts from the server and merge into the local
-// caches. Open shifts are merged WITHOUT clobbering any local dirty shift, so a
-// pending offline clock-out still wins and a wiped cache recovers open shifts.
+// Pull roster + geofence + open shifts + pending acks from the server and merge
+// into the local caches. Local dirty shifts always win (a pending offline
+// clock-out is never clobbered). Non-dirty shifts the server no longer lists as
+// open get dropped — that's how the device learns about the 10 PM auto-close
+// and admin corrections, so the staff member isn't stuck "clocked in" locally.
 async function bootstrap(url: string, anonKey: string): Promise<boolean> {
   try {
     const res = await fetchWithRetry(`${url}/functions/v1/staff-clock-bootstrap`, {
@@ -172,11 +184,16 @@ async function bootstrap(url: string, anonKey: string): Promise<boolean> {
     if (Array.isArray(data.geofence) && data.geofence.length) writeJSON(LS_GEOFENCE_KEY, data.geofence)
 
     if (Array.isArray(data.open_shifts)) {
-      const local = getShifts()
-      const byId = new Map(local.map((s) => [s.id, s]))
       const roster = getRoster()
-      for (const os of data.open_shifts) {
-        if (!os?.id || byId.has(os.id)) continue // keep local version (may be dirty)
+      const serverOpen = new Map<string, any>(
+        data.open_shifts.filter((os: any) => os?.id).map((os: any) => [os.id, os]),
+      )
+      // Keep: dirty shifts (device-owned, not yet accepted) + shifts the server
+      // still lists as open. Everything else is closed history — prune it.
+      const local = getShifts().filter((s) => s.dirty || serverOpen.has(s.id))
+      const byId = new Set(local.map((s) => s.id))
+      serverOpen.forEach((os) => {
+        if (byId.has(os.id)) return // keep local version (may be dirty)
         const st = roster.find((r) => r.id === os.staff_id)
         local.push({
           id: os.id,
@@ -190,19 +207,32 @@ async function bootstrap(url: string, anonKey: string): Promise<boolean> {
           clock_out_lng: null,
           dirty: false,
         })
-      }
+      })
       setShifts(local)
+    }
+
+    // Server is the source of truth for pending acks, minus anything the staff
+    // member already acknowledged on this device that hasn't synced yet.
+    if (data.acks && typeof data.acks === 'object' && !Array.isArray(data.acks)) {
+      const queued = new Set(getAckQueue())
+      const next: PendingAcks = {}
+      for (const [staffId, v] of Object.entries(data.acks as PendingAcks)) {
+        const ids = Array.isArray(v?.shift_ids) ? v.shift_ids.filter((id) => !queued.has(id)) : []
+        if (ids.length) next[staffId] = { strike: v.strike || ids.length, shift_ids: ids }
+      }
+      setPendingAcks(next)
     }
     return true
   } catch { return false }
 }
 
-// Flush every dirty shift to the server. Idempotent: shifts carry device UUIDs,
-// so a retried sync just re-upserts the same rows. Returns true on success.
+// Flush every dirty shift + queued acknowledgment to the server. Idempotent:
+// shifts carry device UUIDs, so a retried sync just re-upserts the same rows,
+// and re-sent acks are no-ops server-side. Returns true on success.
 async function syncQueue(url: string, anonKey: string): Promise<boolean> {
-  const shifts = getShifts()
-  const dirty = shifts.filter((s) => s.dirty)
-  if (dirty.length === 0) {
+  const dirty = getShifts().filter((s) => s.dirty)
+  const ackQueue = getAckQueue()
+  if (dirty.length === 0 && ackQueue.length === 0) {
     writeJSON(LS_LAST_SYNC_KEY, new Date().toISOString())
     return true
   }
@@ -210,14 +240,15 @@ async function syncQueue(url: string, anonKey: string): Promise<boolean> {
     const res = await fetchWithRetry(`${url}/functions/v1/staff-clock-sync`, {
       method: 'POST',
       headers: authHeaders(anonKey),
-      body: JSON.stringify({ shifts: dirty }),
+      body: JSON.stringify({ shifts: dirty, acks: ackQueue }),
     })
     if (!res.ok) return false
     const data = await res.json()
-    const syncedIds: string[] = Array.isArray(data.synced) ? data.synced : []
-    const synced = new Set(syncedIds)
+    const synced = new Set<string>(Array.isArray(data.synced) ? data.synced : [])
     const next = getShifts().map((s) => (synced.has(s.id) ? { ...s, dirty: false } : s))
     setShifts(next)
+    const acked = new Set<string>(Array.isArray(data.acked) ? data.acked : [])
+    if (acked.size > 0) setAckQueue(getAckQueue().filter((id) => !acked.has(id)))
     writeJSON(LS_LAST_SYNC_KEY, new Date().toISOString())
     return true
   } catch { return false }
@@ -250,11 +281,20 @@ type State =
   | { kind: 'submitting' }
   | { kind: 'result'; result: Result }
   | { kind: 'confirm-long-shift'; staff_name: string; hours: number }
+  | { kind: 'ack-required'; staff_id: string; staff_name: string; strike: number; shift_ids: string[] }
   | { kind: 'error'; message: string }
+
+function ordinal(n: number): string {
+  if (n === 1) return '1st'
+  if (n === 2) return '2nd'
+  if (n === 3) return '3rd'
+  return `${n}th`
+}
 
 export default function StaffClock() {
   const [state, setState] = useState<State>({ kind: 'idle' })
   const [pin, setPin] = useState('')
+  const [ackChecked, setAckChecked] = useState(false)
   const [online, setOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const [lastSync, setLastSync] = useState<number | null>(getLastSync())
   const [pending, setPending] = useState<number>(0)
@@ -465,6 +505,22 @@ export default function StaffClock() {
     }
     const fullName = `${staff.first_name} ${staff.last_name}`
 
+    // 2b. Forgotten clock-out acknowledgment. If the server auto-closed one of
+    // their shifts, they must check the confirmation box before punching.
+    const pendingAck = getPendingAcks()[staff.id]
+    if (pendingAck && pendingAck.shift_ids.length > 0) {
+      pendingPinRef.current = pinValue
+      setAckChecked(false)
+      setState({
+        kind: 'ack-required',
+        staff_id: staff.id,
+        staff_name: fullName,
+        strike: pendingAck.strike,
+        shift_ids: pendingAck.shift_ids,
+      })
+      return
+    }
+
     // 3. Clock-in vs clock-out from the local ledger.
     const shifts = getShifts()
     const open = shifts.find((s) => s.staff_id === staff.id && !s.clock_out_at)
@@ -508,6 +564,19 @@ export default function StaffClock() {
     refreshIndicator()
     runSync(false) // fire-and-forget; the punch is already saved locally
   }, [refreshIndicator, runSync])
+
+  // Staff checked the box: queue the acknowledgment for sync, clear the local
+  // pending flag, and re-run the punch they were trying to make.
+  const confirmAck = useCallback((staffId: string, shiftIds: string[]) => {
+    const queue = new Set(getAckQueue())
+    shiftIds.forEach((id) => queue.add(id))
+    setAckQueue(Array.from(queue))
+    const pending = getPendingAcks()
+    delete pending[staffId]
+    setPendingAcks(pending)
+    appendLocalLog({ event: 'ack_confirmed', staff_id: staffId, shifts: shiftIds.length })
+    submit(pendingPinRef.current, false)
+  }, [submit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-submit when PIN reaches length.
   useEffect(() => {
@@ -704,6 +773,64 @@ export default function StaffClock() {
                 style={{ ...bigButton, padding: '18px', fontSize: 16, background: '#f59e0b' }}
               >
                 Confirm Clock-Out
+              </button>
+            </div>
+          </>
+        )}
+
+        {state.kind === 'ack-required' && (
+          <>
+            <AlertTriangle size={56} style={{ color: state.strike >= 3 ? '#ef4444' : '#f59e0b' }} />
+            <div style={{ marginTop: 14, fontSize: 22, fontWeight: 700 }}>
+              {state.strike === 1 ? 'Clock-Out Reminder' : `Forgotten Clock-Out (${ordinal(state.strike)} time)`}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 16, color: '#ccc' }}>{state.staff_name}</div>
+            <div style={{ marginTop: 14, fontSize: 15, color: '#ddd', lineHeight: 1.55, textAlign: 'left' }}>
+              {state.strike === 1 && (
+                <>You did not clock out your last shift. Please confirm you will remember to clock out today.</>
+              )}
+              {state.strike === 2 && (
+                <>This is the 2nd time you have forgotten to clock out. Please confirm you will clock out every shift.</>
+              )}
+              {state.strike >= 3 && (
+                <>This is the {ordinal(state.strike)} time you have forgotten to clock out.{' '}
+                <b>Management will be contacting you regarding this.</b>{' '}
+                Please confirm you will clock out every shift.</>
+              )}
+            </div>
+            <label
+              style={{
+                marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                background: '#1f1f1f', border: '1px solid ' + (ackChecked ? '#fbbf24' : '#2f2f2f'),
+                borderRadius: 12, padding: '16px 14px', textAlign: 'left', fontSize: 15,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={ackChecked}
+                onChange={(e) => setAckChecked(e.target.checked)}
+                style={{ width: 24, height: 24, accentColor: '#fbbf24', flexShrink: 0 }}
+              />
+              I will remember to clock out at the end of my shift.
+            </label>
+            <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { setState({ kind: 'idle' }); setPin(''); setAckChecked(false) }}
+                style={{ ...bigButton, padding: '18px', fontSize: 16, background: '#2a2a2a', color: '#fff' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!ackChecked}
+                onClick={() => confirmAck(state.staff_id, state.shift_ids)}
+                style={{
+                  ...bigButton, padding: '18px', fontSize: 16,
+                  background: ackChecked ? '#fbbf24' : '#3a3a3a',
+                  color: ackChecked ? '#0a0a0a' : '#777',
+                  cursor: ackChecked ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Confirm
               </button>
             </div>
           </>
