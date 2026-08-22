@@ -25,13 +25,13 @@ function todayInLA(): string {
   }).format(new Date())
 }
 
-function maintenanceBanner(): string {
+function maintenanceBannerLines(): string[] {
   const due = (MAINTENANCE_DUE || '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return []
 
   const dueMs = Date.parse(due + 'T00:00:00Z')
   const todayMs = Date.parse(todayInLA() + 'T00:00:00Z')
-  if (Number.isNaN(dueMs) || Number.isNaN(todayMs)) return ''
+  if (Number.isNaN(dueMs) || Number.isNaN(todayMs)) return []
 
   const days = Math.round((dueMs - todayMs) / 86400000)
 
@@ -49,14 +49,219 @@ function maintenanceBanner(): string {
     detail = past + (past === 1 ? ' DAY' : ' DAYS') + ' PAST RECOMMENDED'
   }
 
-  let b = '[align: center]\n'
-  b += '********************************\n'
-  b += '[bold: on]' + head + '[bold: off]\n'
-  b += '[bold: on]' + detail + '[bold: off]\n'
-  b += 'TO PREVENT ONLINE ORDERING\n'
-  b += 'INTERRUPTIONS\n'
-  b += '********************************\n'
-  return b
+  return [
+    '********************************',
+    head,
+    detail,
+    'TO PREVENT ONLINE ORDERING',
+    'INTERRUPTIONS',
+    '********************************',
+  ]
+}
+
+// --- Raw StarPRNT diagnostic ---------------------------------------------
+const ESC = 0x1b
+const GS = 0x1d
+const enc = new TextEncoder()
+
+function rawConcat(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((n, p) => n + p.length, 0)
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const p of parts) {
+    out.set(p, offset)
+    offset += p.length
+  }
+  return out
+}
+
+const rawSize = (w: number, h: number): Uint8Array =>
+  new Uint8Array([GS, 0x21, ((w - 1) << 4) | (h - 1)])
+
+function buildRawTestPrint(): Uint8Array {
+  const INIT = new Uint8Array([ESC, 0x40])
+  const ALIGN_C = new Uint8Array([ESC, 0x61, 0x01])
+  const ALIGN_L = new Uint8Array([ESC, 0x61, 0x00])
+  const BOLD_ON = new Uint8Array([ESC, 0x45, 0x01])
+  const BOLD_OFF = new Uint8Array([ESC, 0x45, 0x00])
+  const CUT = new Uint8Array([GS, 0x56, 0x42, 0x03])
+  const NORMAL = rawSize(1, 1)
+  const t = (s: string) => enc.encode(s)
+
+  const stamp = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  }).format(new Date())
+
+  return rawConcat([
+    INIT, ALIGN_C,
+    rawSize(2, 2), BOLD_ON, t('TEST PRINT\n'), BOLD_OFF, NORMAL,
+    t('\n'),
+    BOLD_ON,
+    t('NOT A FOOD ORDER\n'),
+    t('DO NOT PREPARE ANYTHING\n'),
+    BOLD_OFF,
+    t('\n'),
+    ALIGN_L,
+    t('Printer diagnostic sent by Chase\n'),
+    t(stamp + '\n'),
+    t('\n'),
+    t('If you can read this line, the\n'),
+    t('printer works fine and the online\n'),
+    t('order problem is the format we\n'),
+    t('were sending it. That is fixable.\n'),
+    t('\n'),
+    t('There is no customer and no food\n'),
+    t('attached to this ticket. Please\n'),
+    t('text Chase that it printed.\n'),
+    t('\n'),
+    ALIGN_C, BOLD_ON,
+    t('NOT AN ORDER\n'),
+    BOLD_OFF,
+    t('\n\n'),
+    CUT,
+  ])
+}
+
+// --- Receipt layout ------------------------------------------------------
+// 32 columns at normal width. Anything printed double-width must stay under
+// 16 characters or it wraps.
+const RECEIPT_COLS = 32
+
+function padBetween(left: string, right: string, w = RECEIPT_COLS): string {
+  const maxLeft = w - right.length - 1
+  const l = left.length > maxLeft ? left.slice(0, maxLeft) : left
+  const gap = Math.max(1, w - l.length - right.length)
+  return l + ' '.repeat(gap) + right
+}
+
+function wrapLines(text: string, indent = ''): string[] {
+  const limit = RECEIPT_COLS - indent.length
+  const words = String(text).split(/\s+/).filter(Boolean)
+  const out: string[] = []
+  let line = ''
+  for (const word of words) {
+    if (!line.length) {
+      line = word.length > limit ? word.slice(0, limit) : word
+    } else if (line.length + 1 + word.length <= limit) {
+      line += ' ' + word
+    } else {
+      out.push(indent + line)
+      line = word.length > limit ? word.slice(0, limit) : word
+    }
+  }
+  if (line.length) out.push(indent + line)
+  return out
+}
+
+function buildRawReceipt(order: any, items: any[], mods: any[], ings: any[]): Uint8Array {
+  const INIT = new Uint8Array([ESC, 0x40])
+  const ALIGN_C = new Uint8Array([ESC, 0x61, 0x01])
+  const ALIGN_L = new Uint8Array([ESC, 0x61, 0x00])
+  const BOLD_ON = new Uint8Array([ESC, 0x45, 0x01])
+  const BOLD_OFF = new Uint8Array([ESC, 0x45, 0x00])
+  const CUT = new Uint8Array([GS, 0x56, 0x42, 0x03])
+  const NORMAL = rawSize(1, 1)
+  const t = (s: string) => enc.encode(s)
+  const RULE = '-'.repeat(RECEIPT_COLS)
+
+  const p: Uint8Array[] = []
+  const line = (s = '') => p.push(t(s + '\n'))
+
+  const orderDate = new Date(order.created_at).toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+
+  const banner = maintenanceBannerLines()
+
+  p.push(INIT, ALIGN_C)
+
+  if (banner.length) {
+    for (const b of banner) line(b)
+    line()
+  }
+
+  p.push(rawSize(2, 2), BOLD_ON)
+  line('TACOS MIRANDA')
+  p.push(BOLD_OFF, NORMAL)
+  line()
+
+  p.push(rawSize(2, 1), BOLD_ON)
+  line('ORDER ' + order.order_number)
+  p.push(BOLD_OFF, NORMAL)
+  line()
+
+  p.push(ALIGN_L, BOLD_ON)
+  line(order.customer_name || 'Guest')
+  p.push(BOLD_OFF)
+  if (order.customer_phone) line(order.customer_phone)
+  line(orderDate)
+  line()
+  line(RULE)
+
+  for (const item of items) {
+    const itemMods = mods.filter((m: any) => m.order_item_id === item.id)
+    const itemIngs = ings.filter((i: any) => i.order_item_id === item.id)
+    const removed = itemIngs.filter((i: any) => i.action === 'remove')
+    const extras = itemIngs.filter((i: any) => i.action === 'extra')
+
+    line()
+    p.push(BOLD_ON)
+    line(padBetween(
+      item.quantity + 'x ' + item.item_name,
+      '$' + Number(item.line_total).toFixed(2),
+    ))
+    p.push(BOLD_OFF)
+
+    if (itemMods.length > 0) {
+      for (const l of wrapLines(itemMods.map((m: any) => m.modifier_name).join(', '), '  ')) line(l)
+    }
+    if (removed.length > 0) {
+      for (const l of wrapLines(removed.map((i: any) => 'NO ' + i.ingredient_name).join(', '), '  ')) line(l)
+    }
+    for (const e of extras) {
+      const charge = Number(e.extra_charge) > 0 ? ' (+$' + Number(e.extra_charge).toFixed(2) + ')' : ''
+      for (const l of wrapLines('EXTRA ' + e.ingredient_name + charge, '  ')) line(l)
+    }
+    if (item.special_instructions) {
+      for (const l of wrapLines('** ' + item.special_instructions, '  ')) line(l)
+    }
+  }
+
+  line()
+  line(RULE)
+  line(padBetween('Subtotal', '$' + Number(order.subtotal).toFixed(2)))
+  line(padBetween('Tax', '$' + Number(order.tax).toFixed(2)))
+
+  // Double height only: width stays 1 so the 32-column layout holds.
+  p.push(BOLD_ON, rawSize(1, 2))
+  line(padBetween('TOTAL', '$' + Number(order.total).toFixed(2)))
+  p.push(NORMAL, BOLD_OFF)
+
+  if (order.special_instructions) {
+    line()
+    p.push(BOLD_ON)
+    line('NOTES:')
+    p.push(BOLD_OFF)
+    for (const l of wrapLines(order.special_instructions)) line(l)
+  }
+
+  line()
+  p.push(ALIGN_C)
+  line('(657) 845-4011')
+  line('21582 Brookhurst St, HB CA 92646')
+
+  if (banner.length) {
+    line()
+    for (const b of banner) line(b)
+  }
+
+  line()
+  line()
+  p.push(CUT)
+
+  return rawConcat(p)
 }
 
 serve(async (req) => {
@@ -88,7 +293,7 @@ serve(async (req) => {
     try {
       const { data: order } = await supabase
         .from('orders')
-        .select('id, order_number')
+        .select('id, order_number, special_instructions')
         .eq('printed', false)
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
@@ -96,18 +301,22 @@ serve(async (req) => {
         .single()
 
       if (order) {
+        // Diagnostic orders are served as raw StarPRNT bytes instead of markup.
+        // Real orders are untouched by this branch.
+        if (/^__RAWTEST_/.test(order.special_instructions || '')) {
+          return new Response(JSON.stringify({
+            jobReady: true,
+            mediaTypes: ['application/vnd.star.starprnt'],
+            jobToken: order.id,
+          }), { headers: { ...headers, 'Content-Type': 'application/json' } })
+        }
+
         return new Response(JSON.stringify({
+          // Raw StarPRNT only. Confirmed 2026-08-22: this TSP143IV accepts a
+          // markup job, ACKs it 200 OK, and prints nothing. Raw bytes print.
+          // Do not add markup back to this list.
           jobReady: true,
-          // NOTE: TSP143IV needs all three offered. With only the markup type
-          // it fetches the job, fails to render, and still sends the DELETE ack,
-          // so orders look printed while no paper comes out. Hotfixed straight
-          // to prod 2026-04-17 and never committed, so any plain redeploy of
-          // this file reverts it. Do not trim this list.
-          mediaTypes: [
-            'text/vnd.star.markup',
-            'application/vnd.star.line',
-            'application/vnd.star.starprnt',
-          ],
+          mediaTypes: ['application/vnd.star.starprnt'],
           jobToken: order.id,
         }), { headers: { ...headers, 'Content-Type': 'application/json' } })
       }
@@ -139,6 +348,15 @@ serve(async (req) => {
         return new Response('Not found', { status: 404, headers })
       }
 
+      // Diagnostic path: raw StarPRNT bytes. Confirms whether this printer
+      // renders raw when it will not render markup.
+      if (/^__RAWTEST_/.test(order.special_instructions || '')) {
+        // .buffer is safe here: rawConcat allocates an exact-length array
+        return new Response(buildRawTestPrint().buffer as ArrayBuffer, {
+          headers: { ...headers, 'Content-Type': 'application/vnd.star.starprnt' },
+        })
+      }
+
       const { data: items } = await supabase
         .from('order_items').select('*').eq('order_id', order.id).order('sort_order')
 
@@ -151,53 +369,10 @@ serve(async (req) => {
       const mods = modsRes.data || []
       const ings = ingsRes.data || []
 
-      const orderDate = new Date(order.created_at).toLocaleString('en-US', {
-        timeZone: 'America/Los_Angeles',
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-      })
+      const receipt = buildRawReceipt(order, items || [], mods, ings)
 
-      let r = ''
-      r += maintenanceBanner()
-      r += '\n[align: center]\n'
-      r += '[mag: w 2; h 2]TACOS MIRANDA[mag]\n\n'
-      r += '[mag: w 2; h 1]ORDER ' + order.order_number + '[mag]\n\n'
-      r += '[align: left]\n'
-      r += '[bold: on]' + (order.customer_name || 'Guest') + '[bold: off]\n'
-      if (order.customer_phone) r += order.customer_phone + '\n'
-      r += orderDate + '\n\n'
-      r += '--------------------------------\n'
-
-      for (const item of (items || [])) {
-        const itemMods = mods.filter((m: any) => m.order_item_id === item.id)
-        const itemIngs = ings.filter((i: any) => i.order_item_id === item.id)
-        const removed = itemIngs.filter((i: any) => i.action === 'remove')
-        const extras = itemIngs.filter((i: any) => i.action === 'extra')
-
-        r += '\n[bold: on][column: left: ' + item.quantity + 'x ' + item.item_name + '; right: $' + Number(item.line_total).toFixed(2) + '][bold: off]\n'
-        if (itemMods.length > 0) r += '  ' + itemMods.map((m: any) => m.modifier_name).join(', ') + '\n'
-        if (removed.length > 0) r += '  ' + removed.map((i: any) => 'NO ' + i.ingredient_name).join(', ') + '\n'
-        for (const e of extras) {
-          const charge = Number(e.extra_charge) > 0 ? ' (+$' + Number(e.extra_charge).toFixed(2) + ')' : ''
-          r += '  EXTRA ' + e.ingredient_name + charge + '\n'
-        }
-        if (item.special_instructions) r += '  ** ' + item.special_instructions + '\n'
-      }
-
-      r += '\n--------------------------------\n'
-      r += '[column: left: Subtotal; right: $' + Number(order.subtotal).toFixed(2) + ']\n'
-      r += '[column: left: Tax; right: $' + Number(order.tax).toFixed(2) + ']\n'
-      r += '[bold: on][mag: w 1; h 2][column: left: TOTAL; right: $' + Number(order.total).toFixed(2) + '][mag][bold: off]\n'
-
-      if (order.special_instructions) {
-        r += '\n[bold: on]NOTES:[bold: off]\n' + order.special_instructions + '\n'
-      }
-
-      r += '\n[align: center]\n(657) 845-4011\n21582 Brookhurst St, HB CA 92646\n\n'
-      r += maintenanceBanner()
-      r += '\n\n[cut: feed; partial]\n'
-
-      return new Response(r, {
-        headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
+      return new Response(receipt.buffer as ArrayBuffer, {
+        headers: { ...headers, 'Content-Type': 'application/vnd.star.starprnt' },
       })
     } catch (err: any) {
       return new Response(err.message, { status: 500, headers })
