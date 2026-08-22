@@ -12,6 +12,53 @@ function formatLine(left: string, right: string, width = 32): string {
   return l + ' ' + right
 }
 
+// --- Maintenance notice -------------------------------------------------
+// Due date lives in the MAINTENANCE_DUE secret (YYYY-MM-DD) so it can be
+// reset after a visit without redeploying. Unset or malformed = no banner.
+const MAINTENANCE_DUE = Deno.env.get('MAINTENANCE_DUE') ?? ''
+
+function todayInLA(): string {
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+}
+
+function maintenanceBanner(): string {
+  const due = (MAINTENANCE_DUE || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return ''
+
+  const dueMs = Date.parse(due + 'T00:00:00Z')
+  const todayMs = Date.parse(todayInLA() + 'T00:00:00Z')
+  if (Number.isNaN(dueMs) || Number.isNaN(todayMs)) return ''
+
+  const days = Math.round((dueMs - todayMs) / 86400000)
+
+  let head: string
+  let detail: string
+  if (days > 0) {
+    head = 'MAINTENANCE RECOMMENDED'
+    detail = 'IN ' + days + (days === 1 ? ' DAY' : ' DAYS')
+  } else if (days === 0) {
+    head = 'MAINTENANCE RECOMMENDED'
+    detail = 'TODAY'
+  } else {
+    const past = -days
+    head = '** MAINTENANCE OVERDUE **'
+    detail = past + (past === 1 ? ' DAY' : ' DAYS') + ' PAST RECOMMENDED'
+  }
+
+  let b = '[align: center]\n'
+  b += '********************************\n'
+  b += '[bold: on]' + head + '[bold: off]\n'
+  b += '[bold: on]' + detail + '[bold: off]\n'
+  b += 'TO PREVENT ONLINE ORDERING\n'
+  b += 'INTERRUPTIONS\n'
+  b += '********************************\n'
+  return b
+}
+
 serve(async (req) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -101,7 +148,8 @@ serve(async (req) => {
       })
 
       let r = ''
-      r += '[align: center]\n'
+      r += maintenanceBanner()
+      r += '\n[align: center]\n'
       r += '[mag: w 2; h 2]TACOS MIRANDA[mag]\n\n'
       r += '[mag: w 2; h 1]ORDER ' + order.order_number + '[mag]\n\n'
       r += '[align: left]\n'
@@ -135,7 +183,9 @@ serve(async (req) => {
         r += '\n[bold: on]NOTES:[bold: off]\n' + order.special_instructions + '\n'
       }
 
-      r += '\n[align: center]\n(657) 845-4011\n21582 Brookhurst St, HB CA 92646\n\n\n[cut: feed; partial]\n'
+      r += '\n[align: center]\n(657) 845-4011\n21582 Brookhurst St, HB CA 92646\n\n'
+      r += maintenanceBanner()
+      r += '\n\n[cut: feed; partial]\n'
 
       return new Response(r, {
         headers: { ...headers, 'Content-Type': 'text/vnd.star.markup' },
