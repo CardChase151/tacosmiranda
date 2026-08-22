@@ -61,7 +61,6 @@ function maintenanceBannerLines(): string[] {
 
 // --- Raw StarPRNT diagnostic ---------------------------------------------
 const ESC = 0x1b
-const GS = 0x1d
 const enc = new TextEncoder()
 
 function rawConcat(parts: Uint8Array[]): Uint8Array {
@@ -75,8 +74,17 @@ function rawConcat(parts: Uint8Array[]): Uint8Array {
   return out
 }
 
+// Under CloudPRNT this printer runs Star Line Mode, NOT ESC/POS. Confirmed by
+// diagnostic 2026-06-10 and re-confirmed 2026-08-22:
+//   IGNORED : GS!n (1D 21 nn), ESC!n (1B 21 nn), 1-byte ESC i n
+//   WORKS   : ESC i n m (1B 69 n m) expansion, n=vertical-1, m=horizontal-1
+//   WORKS   : ESC d 3 (1B 64 03) partial cut. ESC/POS GS V does NOT cut.
+// Do not "simplify" these back to ESC/POS. They fail silently: the printer
+// accepts the job, ACKs 200 OK, and prints flat unsized text with no cut.
 const rawSize = (w: number, h: number): Uint8Array =>
-  new Uint8Array([GS, 0x21, ((w - 1) << 4) | (h - 1)])
+  new Uint8Array([ESC, 0x69, Math.max(0, h - 1), Math.max(0, w - 1)])
+
+const RAW_CUT = new Uint8Array([ESC, 0x64, 0x03])
 
 function buildRawTestPrint(): Uint8Array {
   const INIT = new Uint8Array([ESC, 0x40])
@@ -84,7 +92,7 @@ function buildRawTestPrint(): Uint8Array {
   const ALIGN_L = new Uint8Array([ESC, 0x61, 0x00])
   const BOLD_ON = new Uint8Array([ESC, 0x45, 0x01])
   const BOLD_OFF = new Uint8Array([ESC, 0x45, 0x00])
-  const CUT = new Uint8Array([GS, 0x56, 0x42, 0x03])
+  const CUT = RAW_CUT
   const NORMAL = rawSize(1, 1)
   const t = (s: string) => enc.encode(s)
 
@@ -160,7 +168,7 @@ function buildRawReceipt(order: any, items: any[], mods: any[], ings: any[]): Ui
   const ALIGN_L = new Uint8Array([ESC, 0x61, 0x00])
   const BOLD_ON = new Uint8Array([ESC, 0x45, 0x01])
   const BOLD_OFF = new Uint8Array([ESC, 0x45, 0x00])
-  const CUT = new Uint8Array([GS, 0x56, 0x42, 0x03])
+  const CUT = RAW_CUT
   const NORMAL = rawSize(1, 1)
   const t = (s: string) => enc.encode(s)
   const RULE = '-'.repeat(RECEIPT_COLS)
@@ -187,14 +195,14 @@ function buildRawReceipt(order: any, items: any[], mods: any[], ings: any[]): Ui
   p.push(BOLD_OFF, NORMAL)
   line()
 
-  p.push(rawSize(2, 1), BOLD_ON)
+  p.push(rawSize(2, 2), BOLD_ON)
   line('ORDER ' + order.order_number)
   p.push(BOLD_OFF, NORMAL)
   line()
 
-  p.push(ALIGN_L, BOLD_ON)
+  p.push(ALIGN_L, BOLD_ON, rawSize(1, 2))
   line(order.customer_name || 'Guest')
-  p.push(BOLD_OFF)
+  p.push(NORMAL, BOLD_OFF)
   if (order.customer_phone) line(order.customer_phone)
   line(orderDate)
   line()
@@ -206,13 +214,15 @@ function buildRawReceipt(order: any, items: any[], mods: any[], ings: any[]): Ui
     const removed = itemIngs.filter((i: any) => i.action === 'remove')
     const extras = itemIngs.filter((i: any) => i.action === 'extra')
 
+    // Items are the chef's anchor: double height so they carry the ticket.
+    // Width stays 1x or the 32-column price alignment collapses.
     line()
-    p.push(BOLD_ON)
+    p.push(BOLD_ON, rawSize(1, 2))
     line(padBetween(
       item.quantity + 'x ' + item.item_name,
       '$' + Number(item.line_total).toFixed(2),
     ))
-    p.push(BOLD_OFF)
+    p.push(NORMAL, BOLD_OFF)
 
     if (itemMods.length > 0) {
       for (const l of wrapLines(itemMods.map((m: any) => m.modifier_name).join(', '), '  ')) line(l)
@@ -259,9 +269,10 @@ function buildRawReceipt(order: any, items: any[], mods: any[], ings: any[]): Ui
 
   line()
   line()
-  p.push(CUT)
 
-  return rawConcat(p)
+  // Two copies per order, cut between and at the end: one for the kitchen,
+  // one for the customer bag. Each copy re-sends INIT so state cannot leak.
+  return rawConcat([...p, CUT, ...p, CUT])
 }
 
 serve(async (req) => {
