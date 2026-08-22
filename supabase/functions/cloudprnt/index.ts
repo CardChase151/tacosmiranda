@@ -98,7 +98,16 @@ serve(async (req) => {
       if (order) {
         return new Response(JSON.stringify({
           jobReady: true,
-          mediaTypes: ['text/vnd.star.markup'],
+          // NOTE: TSP143IV needs all three offered. With only the markup type
+          // it fetches the job, fails to render, and still sends the DELETE ack,
+          // so orders look printed while no paper comes out. Hotfixed straight
+          // to prod 2026-04-17 and never committed, so any plain redeploy of
+          // this file reverts it. Do not trim this list.
+          mediaTypes: [
+            'text/vnd.star.markup',
+            'application/vnd.star.line',
+            'application/vnd.star.starprnt',
+          ],
           jobToken: order.id,
         }), { headers: { ...headers, 'Content-Type': 'application/json' } })
       }
