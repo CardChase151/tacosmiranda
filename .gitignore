@@ -29,3 +29,6 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+
+# Internal ops notes (public repo)
+MAINTENANCE_NOTICE.md
