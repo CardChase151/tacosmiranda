@@ -1,6 +1,12 @@
 import type { Handler } from '@netlify/functions'
 
-const TO_EMAIL = 'TheK2way17@gmail.com'
+// Recipients for the restaurant-side order notification. Set
+// ORDER_NOTIFY_EMAILS in Netlify (comma separated) to change who gets these
+// without a code change; addresses stay out of this public repo.
+const TO_EMAILS = (process.env.ORDER_NOTIFY_EMAILS || 'TheK2way17@gmail.com')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean)
 const FROM = 'Tacos Miranda <orders@mysendz.com>'
 const LOGO_URL = 'https://tacosmiranda.com/logo-white-transparent.png'
 const RESTAURANT_ADDRESS = '21582 Brookhurst St, Huntington Beach, CA 92646'
@@ -397,7 +403,7 @@ const handler: Handler = async (event) => {
         headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: FROM,
-          to: [TO_EMAIL],
+          to: TO_EMAILS,
           subject: `New Order ${order.order_number} · ${total}`,
           html: restaurantHtml,
         }),
