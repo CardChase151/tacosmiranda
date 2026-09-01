@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useRef, useContext, createContext, useMemo } from 'react'
-import { FileImage, FileText, Film, ArrowLeft } from 'lucide-react'
+import { FileImage, FileText, Film, ArrowLeft, Eye, Smartphone } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
@@ -10,7 +10,7 @@ import { MenuCategory, MenuItem } from '../types'
 // Each format is a real paper size at 150 dpi, plus what the owner has to buy
 // to print it. Type auto-fits whatever canvas it lands on, so a bigger sheet
 // simply means bigger type rather than a different layout.
-type FormatKey = 'screen' | 'folded'
+type FormatKey = 'screen' | 'folded' | 'poster'
 
 interface MenuFormat {
   key: FormatKey
@@ -22,6 +22,9 @@ interface MenuFormat {
   // What to tell the owner to buy or ask the print shop for.
   paper: string
   approxType: string
+  // Ceiling on the type scale. Per-format so a big sheet can grow without
+  // changing the sizes already dialled in on the smaller ones.
+  maxScale: number
 }
 
 const FORMATS: MenuFormat[] = [
@@ -29,7 +32,7 @@ const FORMATS: MenuFormat[] = [
     key: 'screen',
     label: 'Wide Sheet',
     blurb: 'The 16:9 landscape layout. Drives the in-store TVs, and prints as a single wide page.',
-    width: 1200, height: 675, cols: 3,
+    width: 1200, height: 675, cols: 3, maxScale: 2.2,
     paper: 'For the TVs there is no paper — use the video or image export. To print it, use '
          + 'letter 8.5 x 11 in landscape, or tabloid 11 x 17 landscape if you want it larger.',
     approxType: 'one page per meal',
@@ -38,7 +41,7 @@ const FORMATS: MenuFormat[] = [
     key: 'folded',
     label: 'Folded Menu',
     blurb: 'A four-panel booklet per meal: cover, then the menu across three pages.',
-    width: 825, height: 1275, cols: 1,
+    width: 825, height: 1275, cols: 1, maxScale: 2.2,
     paper: 'One sheet of letter 8.5 x 11 per meal, fed LANDSCAPE, printed double-sided, then '
          + 'folded once down the middle. That gives four 5.5 x 8.5 panels. Plain 20 lb copy paper '
          + 'works; 32 lb or 65 lb cardstock feels like a real menu. Any office printer — no print shop.',
@@ -54,6 +57,17 @@ export default function PrintMenu() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
   const [formatKey, setFormatKey] = useState<FormatKey>('screen')
+  // Sheets are 1200-1650px wide. Shrunk onto a phone they are unreadable, so
+  // on mobile we keep them laid out off-screen for the export and hand the
+  // owner a PDF instead of a postage-stamp preview.
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 900 : false
+  )
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 900)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const format = FORMATS.find(f => f.key === formatKey) as MenuFormat
 
   const fetchMenu = useCallback(async () => {
@@ -115,6 +129,39 @@ export default function PrintMenu() {
   }
 
   // Download Images (2 separate PNGs)
+  const buildPDF = async () => {
+    const canvases: HTMLCanvasElement[] = []
+    for (const t of exportTargets) {
+      const c = await captureElement(t.id)
+      if (c) canvases.push(c)
+    }
+    if (canvases.length === 0) return null
+
+    const pageOf = (c: HTMLCanvasElement) => [c.width / 2, c.height / 2] as [number, number]
+    const orientOf = (c: HTMLCanvasElement) =>
+      (c.width >= c.height ? 'landscape' : 'portrait') as 'landscape' | 'portrait'
+
+    const pdf = new jsPDF({ orientation: orientOf(canvases[0]), unit: 'px', format: pageOf(canvases[0]) })
+    canvases.forEach((c, i) => {
+      if (i > 0) pdf.addPage(pageOf(c), orientOf(c))
+      pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, c.width / 2, c.height / 2)
+    })
+    return pdf
+  }
+
+  const handleOpenPDF = async () => {
+    setStatus('Building preview...')
+    try {
+      const pdf = await buildPDF()
+      if (pdf) {
+        // Popup blockers can swallow the new tab; fall back to a download.
+        const opened = window.open(pdf.output('bloburl') as unknown as string, '_blank')
+        if (!opened) pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
+      }
+    } catch (e) { console.error(e) }
+    setStatus('')
+  }
+
   const handleImages = async () => {
     setStatus('Generating images...')
     try {
@@ -319,6 +366,11 @@ export default function PrintMenu() {
 
       {/* Download Buttons */}
       <div style={{ maxWidth: 1200, margin: '0 auto 48px', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {isMobile && (
+          <button onClick={handleOpenPDF} disabled={!!status} style={{ ...btnStyle, background: 'transparent', color: 'var(--gold)', border: '1px solid var(--gold)', opacity: status ? 0.5 : 1 }}>
+            <Eye size={18} /> Open PDF
+          </button>
+        )}
         <button onClick={handlePDF} disabled={!!status} style={{ ...btnStyle, background: 'var(--gold)', color: 'var(--black)', opacity: status ? 0.5 : 1 }}>
           <FileText size={18} /> Download PDF
         </button>
@@ -338,7 +390,42 @@ export default function PrintMenu() {
         </div>
       )}
 
-      {/* Previews — every sheet sits in one scale group so they print alike. */}
+      {isMobile && (
+        <div style={{
+          maxWidth: 620, margin: '0 auto 32px', textAlign: 'center',
+          background: 'rgba(255,255,255,0.04)', border: '1px solid #2a2a2a',
+          borderRadius: 12, padding: '26px 22px',
+        }}>
+          <Smartphone size={26} style={{ color: 'var(--gold)', marginBottom: 10 }} />
+          <p style={{ color: 'var(--white)', fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>
+            Preview on a bigger screen
+          </p>
+          <p style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.6, margin: '0 0 18px' }}>
+            These sheets are printed at 11 to 17 inches wide. Squeezed onto a phone
+            they are too small to judge. Open the PDF instead — it is the exact file
+            the printer gets.
+          </p>
+          <button
+            onClick={handleOpenPDF}
+            disabled={!!status}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '14px 26px', borderRadius: 10, border: 'none',
+              background: 'var(--gold)', color: 'var(--black)',
+              fontSize: 15, fontWeight: 700, cursor: 'pointer',
+              opacity: status ? 0.5 : 1,
+            }}
+          >
+            <Eye size={18} /> {status ? 'Building…' : 'Open PDF Preview'}
+          </button>
+        </div>
+      )}
+
+      {/* Previews — every sheet sits in one scale group so they print alike.
+          Off-screen on mobile: still laid out for the export, just not shown. */}
+      <div style={isMobile
+        ? { position: 'fixed', left: -20000, top: 0, width: 2000, pointerEvents: 'none' }
+        : undefined}>
       <ScaleGroupProvider>
       {formatKey === 'folded' ? (
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 44, alignItems: 'center' }}>
@@ -395,7 +482,7 @@ export default function PrintMenu() {
             <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
               <div id="menu-breakfast">
                 <V1Page id="breakfast" cats={breakfastCats} getItems={getItems} title="Breakfast"
-                  width={format.width} height={format.height} cols={format.cols} />
+                  width={format.width} height={format.height} cols={format.cols} maxScale={format.maxScale} />
               </div>
             </div>
           </div>
@@ -406,7 +493,7 @@ export default function PrintMenu() {
             <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
               <div id="menu-lunch">
                 <V1Page id="lunch" cats={lunchCats} getItems={getItems} title="Lunch & Dinner"
-                  width={format.width} height={format.height} cols={format.cols} />
+                  width={format.width} height={format.height} cols={format.cols} maxScale={format.maxScale} />
               </div>
             </div>
           </div>
@@ -414,6 +501,7 @@ export default function PrintMenu() {
       </div>
       )}
       </ScaleGroupProvider>
+      </div>
     </div>
   )
 }
@@ -453,7 +541,7 @@ function ScaleGroupProvider({ children }: { children: React.ReactNode }) {
   return <ScaleGroup.Provider value={value}>{children}</ScaleGroup.Provider>
 }
 
-function useFitScale(id: string, deps: unknown[]) {
+function useFitScale(id: string, deps: unknown[], maxScale: number = MAX_SCALE) {
   const { report, groupScale } = useContext(ScaleGroup)
   const boxRef = useRef<HTMLDivElement>(null)
   const [own, setOwn] = useState(1)
@@ -464,7 +552,7 @@ function useFitScale(id: string, deps: unknown[]) {
     if (!box) return
 
     let lo = MIN_SCALE
-    let hi = MAX_SCALE
+    let hi = maxScale
     let best = MIN_SCALE
 
     // Measure the font size against tight leading only. Leaving an expanded
@@ -660,6 +748,7 @@ interface PageProps {
   width: number
   height: number
   cols: number
+  maxScale: number
 }
 
 // Roughly how many description characters fit on one line in a single column.
@@ -708,13 +797,13 @@ function ItemRow({ item, nameColor, priceColor, descColor, dotColor }: { item: M
   )
 }
 
-function V1Page({ cats, getItems, id, title, width, height, cols }: PageProps) {
+function V1Page({ cats, getItems, id, title, width, height, cols, maxScale }: PageProps) {
   // A light menu in three columns leaves short, ragged columns. Fewer columns
   // means taller content and a fuller page at the same type size.
   const itemCount = cats.reduce((n, c) => n + getItems(c.id).length, 0)
   const effectiveCols = cols > 1 && itemCount <= 28 ? cols - 1 : cols
   const columns = splitIntoColumns(cats, getItems, effectiveCols)
-  const { boxRef, scale, overflowing } = useFitScale(id, [cats, getItems, width, height, effectiveCols])
+  const { boxRef, scale, overflowing } = useFitScale(id, [cats, getItems, width, height, effectiveCols, maxScale], maxScale)
   // White sheet, black ink, one plain sans. No color anywhere — this is a
   // document to be read, not a themed graphic.
   const bg = '#FFFFFF'
