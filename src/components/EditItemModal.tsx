@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Trash2, Plus, Eye, Pencil } from 'lucide-react'
+import { X, Check, Trash2, Plus, Eye, Pencil, ImagePlus, Loader2 } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem, MenuCategory, Ingredient, IngredientCategory, MenuItemIngredient, ModifierGroup, Modifier, MenuItemModifierGroup } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
+import { uploadMenuPhoto, removeMenuPhoto } from '../utils/menuPhoto'
 import ItemCustomizer from './order/ItemCustomizer'
 import { CartProvider } from '../context/CartContext'
 
@@ -20,6 +21,8 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   const [categoryId, setCategoryId] = useState(item.category_id)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(item.image_url ?? null)
+  const [photoBusy, setPhotoBusy] = useState(false)
 
   // Linked data
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
@@ -65,10 +68,44 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
   const handleSave = async () => {
     if (!name || !price) return
     setSaving(true)
-    await supabase.from('menu_items').update({ name, price: parseFloat(price), description, category_id: categoryId }).eq('id', item.id)
+    await supabase.from('menu_items').update({ name, price: parseFloat(price), description, category_id: categoryId, image_url: imageUrl }).eq('id', item.id)
     setSaving(false)
     onUpdate()
     onClose()
+  }
+
+  const handlePhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setPhotoBusy(true)
+    try {
+      const previous = imageUrl
+      const url = await uploadMenuPhoto(item.id, file)
+      await supabase.from('menu_items').update({ image_url: url }).eq('id', item.id)
+      setImageUrl(url)
+      if (previous) await removeMenuPhoto(previous)
+      onUpdate()
+    } catch (err: any) {
+      alert(`Couldn't upload that photo: ${err?.message || err}`)
+    }
+    setPhotoBusy(false)
+  }
+
+  const handlePhotoRemove = async () => {
+    if (!imageUrl) return
+    if (!window.confirm('Remove this photo?')) return
+    setPhotoBusy(true)
+    try {
+      await supabase.from('menu_items').update({ image_url: null }).eq('id', item.id)
+      await removeMenuPhoto(imageUrl)
+      setImageUrl(null)
+      onUpdate()
+    } catch (err: any) {
+      alert(`Couldn't remove the photo: ${err?.message || err}`)
+    }
+    setPhotoBusy(false)
   }
 
   const handleDelete = async () => {
@@ -182,6 +219,12 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
     fontSize: 11, fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 6, display: 'block',
   }
+  const photoBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    padding: '10px 14px', background: 'transparent',
+    border: '1px solid var(--border)', borderRadius: 8,
+    color: 'var(--gold)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  }
 
   const breakfastCategories = categories.filter(c => c.meal_type === 'breakfast')
   const lunchCategories = categories.filter(c => c.meal_type === 'lunch_dinner')
@@ -238,6 +281,49 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Description for Menu</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder={`"Tacos Miranda's Favorite" or "Your choice of..."`} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Photo</label>
+          <p style={{ color: '#777', fontSize: 12, margin: '0 0 10px' }}>
+            Shows at the top of this item's popup when a customer taps it to order.
+          </p>
+
+          {imageUrl ? (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <img
+                src={imageUrl}
+                alt={name}
+                style={{ width: 160, height: 120, objectFit: 'cover', borderRadius: 10, border: '1px solid #333' }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ ...photoBtn, opacity: photoBusy ? 0.5 : 1 }}>
+                  {photoBusy ? <Loader2 size={14} className="spin-mp" /> : <ImagePlus size={14} />}
+                  Replace
+                  <input type="file" accept="image/*" onChange={handlePhotoPick} disabled={photoBusy} style={{ display: 'none' }} />
+                </label>
+                <button
+                  type="button"
+                  onClick={handlePhotoRemove}
+                  disabled={photoBusy}
+                  style={{ ...photoBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.4)' }}
+                >
+                  <Trash2 size={14} /> Remove
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label style={{
+              ...photoBtn,
+              width: '100%', justifyContent: 'center', padding: '20px 12px',
+              borderStyle: 'dashed', opacity: photoBusy ? 0.5 : 1,
+            }}>
+              {photoBusy ? <Loader2 size={16} className="spin-mp" /> : <ImagePlus size={16} />}
+              {photoBusy ? 'Uploading…' : 'Add a photo'}
+              <input type="file" accept="image/*" onChange={handlePhotoPick} disabled={photoBusy} style={{ display: 'none' }} />
+            </label>
+          )}
+          <style>{`.spin-mp{animation:spinmp 1s linear infinite}@keyframes spinmp{to{transform:rotate(360deg)}}`}</style>
         </div>
 
         <div style={{ marginBottom: 24 }}>
@@ -402,6 +488,7 @@ export default function EditItemModal({ item, categories, onClose, onUpdate }: P
           name, description,
           price: parseFloat(price) || 0,
           category_id: categoryId,
+          image_url: imageUrl,
         }
         const customizerModifierGroups = linkedMgs
           .map(link => {

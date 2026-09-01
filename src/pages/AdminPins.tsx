@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { Plus, Pencil, Power, PowerOff, Trash2, Users, Clock, AlertCircle, AlertTriangle, X, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, Power, PowerOff, Trash2, Users, Clock, AlertCircle, AlertTriangle, X, RotateCcw, Download, FileText } from 'lucide-react'
 
 type Staff = {
   id: string
@@ -23,20 +23,74 @@ type Shift = {
   edited_at: string | null
 }
 
-type Range = 'today' | 'week' | 'month' | 'all'
+type Preset = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom'
 
-function startOf(r: Range): Date {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  if (r === 'today') return d
-  if (r === 'week') {
-    const day = d.getDay()
-    const diff = day === 0 ? 6 : day - 1
-    d.setDate(d.getDate() - diff)
-    return d
+const PRESET_LABELS: Record<Preset, string> = {
+  today: 'Today',
+  this_week: 'This Week',
+  last_week: 'Last Week',
+  this_month: 'This Month',
+  last_month: 'Last Month',
+  custom: 'Custom',
+}
+
+// ── Date-window helpers ──────────────────────────────────────────────────────
+// The window is a real start AND end so a pay period that crosses a month
+// boundary (e.g. Aug 24 - Sep 6) is one view instead of two half-views.
+
+function ymd(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// 'YYYY-MM-DD' -> local midnight (not UTC, which would shift the day in LA).
+function dayStart(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d, 0, 0, 0, 0)
+}
+
+// Exclusive upper bound: midnight at the start of the following day, so the
+// end date is fully included.
+function dayEndExclusive(s: string): Date {
+  const d = dayStart(s)
+  d.setDate(d.getDate() + 1)
+  return d
+}
+
+function presetWindow(p: Preset): { start: string; end: string } {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+
+  if (p === 'today') return { start: ymd(now), end: ymd(now) }
+
+  if (p === 'this_week' || p === 'last_week') {
+    const day = now.getDay()
+    const backToMonday = day === 0 ? 6 : day - 1
+    const monday = new Date(now)
+    monday.setDate(monday.getDate() - backToMonday)
+    if (p === 'last_week') monday.setDate(monday.getDate() - 7)
+    const sunday = new Date(monday)
+    sunday.setDate(sunday.getDate() + 6)
+    return { start: ymd(monday), end: ymd(sunday) }
   }
-  if (r === 'month') return new Date(d.getFullYear(), d.getMonth(), 1)
-  return new Date(0)
+
+  if (p === 'this_month') {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1)
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    return { start: ymd(first), end: ymd(last) }
+  }
+
+  // last_month
+  const first = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const last = new Date(now.getFullYear(), now.getMonth(), 0)
+  return { start: ymd(first), end: ymd(last) }
+}
+
+function fmtRangeLabel(start: string, end: string): string {
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
+  const a = dayStart(start).toLocaleDateString('en-US', opts)
+  const b = dayStart(end).toLocaleDateString('en-US', opts)
+  return a === b ? a : `${a} - ${b}`
 }
 
 function generatePin(existing: string[]): string {
@@ -78,7 +132,15 @@ export default function AdminPins() {
   const [staff, setStaff] = useState<Staff[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [shifts, setShifts] = useState<Shift[]>([])
-  const [range, setRange] = useState<Range>('week')
+  const [preset, setPreset] = useState<Preset>('this_week')
+  const initialWindow = presetWindow('this_week')
+  const [startDate, setStartDate] = useState<string>(initialWindow.start)
+  const [endDate, setEndDate] = useState<string>(initialWindow.end)
+  // All-staff payroll view for the same window.
+  const [viewAll, setViewAll] = useState(false)
+  const [allShifts, setAllShifts] = useState<Shift[]>([])
+  const [allLoading, setAllLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [editing, setEditing] = useState<Partial<Staff> | null>(null)
   const [busy, setBusy] = useState(false)
   // Shift being corrected: datetime-local strings, '' out = still open.
@@ -96,14 +158,35 @@ export default function AdminPins() {
   }
 
   const fetchShifts = async (staffId: string) => {
-    const since = startOf(range).toISOString()
     const { data } = await supabase
       .from('time_clock')
       .select('id, staff_id, clock_in_at, clock_out_at, auto_closed, edited_at')
       .eq('staff_id', staffId)
-      .gte('clock_in_at', since)
+      .gte('clock_in_at', dayStart(startDate).toISOString())
+      .lt('clock_in_at', dayEndExclusive(endDate).toISOString())
       .order('clock_in_at', { ascending: false })
     setShifts((data as Shift[]) || [])
+  }
+
+  // Every staff member's shifts in the window, for the payroll summary.
+  const fetchAllShifts = async () => {
+    setAllLoading(true)
+    const { data } = await supabase
+      .from('time_clock')
+      .select('id, staff_id, clock_in_at, clock_out_at, auto_closed, edited_at')
+      .gte('clock_in_at', dayStart(startDate).toISOString())
+      .lt('clock_in_at', dayEndExclusive(endDate).toISOString())
+      .order('clock_in_at', { ascending: false })
+    setAllShifts((data as Shift[]) || [])
+    setAllLoading(false)
+  }
+
+  const applyPreset = (p: Preset) => {
+    setPreset(p)
+    if (p === 'custom') return
+    const w = presetWindow(p)
+    setStartDate(w.start)
+    setEndDate(w.end)
   }
 
   // Forgotten clock-outs since the last strike reset — independent of the
@@ -126,7 +209,11 @@ export default function AdminPins() {
   useEffect(() => {
     if (selectedId) fetchShifts(selectedId)
     else setShifts([])
-  }, [selectedId, range])
+  }, [selectedId, startDate, endDate])
+
+  useEffect(() => {
+    if (!loading && user && isAdmin && viewAll) fetchAllShifts()
+  }, [loading, user, isAdmin, viewAll, startDate, endDate])
 
   useEffect(() => {
     if (selected) fetchStrikes(selected.id, selected.strikes_reset_at)
@@ -245,6 +332,187 @@ export default function AdminPins() {
     fetchStrikes(selected.id, new Date().toISOString())
   }
 
+  // ─── payroll rollup + exports ──────────────────────────────────────────────
+  type PayrollRow = {
+    staff: Staff
+    shifts: Shift[]
+    hours: number
+    openCount: number
+    pay: number | null
+  }
+
+  const payrollRows: PayrollRow[] = useMemo(() => {
+    const byStaff = new Map<string, Shift[]>()
+    for (const sh of allShifts) {
+      const list = byStaff.get(sh.staff_id) || []
+      list.push(sh)
+      byStaff.set(sh.staff_id, list)
+    }
+    return staff
+      .map((st) => {
+        const list = (byStaff.get(st.id) || []).slice().sort(
+          (a, b) => new Date(a.clock_in_at).getTime() - new Date(b.clock_in_at).getTime()
+        )
+        const hours = list.filter((x) => x.clock_out_at).reduce((sum, x) => sum + (shiftHours(x) || 0), 0)
+        return {
+          staff: st,
+          shifts: list,
+          hours,
+          openCount: list.filter((x) => !x.clock_out_at).length,
+          pay: st.hourly_rate != null ? hours * st.hourly_rate : null,
+        }
+      })
+      .filter((r) => r.shifts.length > 0)
+      .sort((a, b) => a.staff.first_name.localeCompare(b.staff.first_name))
+  }, [allShifts, staff])
+
+  const grandHours = payrollRows.reduce((sum, r) => sum + r.hours, 0)
+  const grandPay = payrollRows.reduce((sum, r) => sum + (r.pay || 0), 0)
+
+  // Rows for whatever is on screen: one person, or everybody.
+  const exportRows = (): PayrollRow[] => {
+    if (viewAll) return payrollRows
+    if (!selected) return []
+    const list = shifts.slice().sort(
+      (a, b) => new Date(a.clock_in_at).getTime() - new Date(b.clock_in_at).getTime()
+    )
+    const hours = list.filter((x) => x.clock_out_at).reduce((sum, x) => sum + (shiftHours(x) || 0), 0)
+    return [{
+      staff: selected,
+      shifts: list,
+      hours,
+      openCount: list.filter((x) => !x.clock_out_at).length,
+      pay: selected.hourly_rate != null ? hours * selected.hourly_rate : null,
+    }]
+  }
+
+  const fileStamp = () => `${startDate}_to_${endDate}`
+
+  const exportCSV = () => {
+    const rows = exportRows()
+    if (rows.length === 0) { alert('Nothing to export for this date range.'); return }
+
+    const header = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Hours', 'Rate', 'Pay', 'Flags']
+    const lines: string[][] = []
+    for (const r of rows) {
+      for (const sh of r.shifts) {
+        const hrs = shiftHours(sh)
+        const flags = [sh.auto_closed ? 'auto-closed' : '', sh.edited_at ? 'edited' : '', !sh.clock_out_at ? 'still open' : '']
+          .filter(Boolean).join('; ')
+        lines.push([
+          `${r.staff.first_name} ${r.staff.last_name}`,
+          fmtDate(sh.clock_in_at),
+          fmtTime(sh.clock_in_at),
+          sh.clock_out_at ? fmtTime(sh.clock_out_at) : '',
+          hrs != null ? hrs.toFixed(2) : '',
+          r.staff.hourly_rate != null ? r.staff.hourly_rate.toFixed(2) : '',
+          hrs != null && r.staff.hourly_rate != null ? (hrs * r.staff.hourly_rate).toFixed(2) : '',
+          flags,
+        ])
+      }
+      lines.push([`${r.staff.first_name} ${r.staff.last_name} TOTAL`, '', '', '', r.hours.toFixed(2), '', r.pay != null ? r.pay.toFixed(2) : '', ''])
+      lines.push([])
+    }
+
+    const csv = [header, ...lines].map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tacos-miranda-timecards_${fileStamp()}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportPDF = async () => {
+    const rows = exportRows()
+    if (rows.length === 0) { alert('Nothing to export for this date range.'); return }
+
+    setExporting(true)
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+      const pageW = doc.internal.pageSize.getWidth()
+      const pageH = doc.internal.pageSize.getHeight()
+      const left = 48
+      let y = 56
+
+      const newPageIfNeeded = (needed: number) => {
+        if (y + needed > pageH - 56) { doc.addPage(); y = 56 }
+      }
+
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(18)
+      doc.text('Tacos Miranda - Time Cards', left, y); y += 20
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(11)
+      doc.setTextColor(90)
+      doc.text(fmtRangeLabel(startDate, endDate), left, y); y += 14
+      doc.text(`Generated ${new Date().toLocaleString()}`, left, y); y += 22
+      doc.setTextColor(0)
+
+      const cols = [left, left + 130, left + 215, left + 300, left + 370, left + 440]
+      for (const r of rows) {
+        newPageIfNeeded(90)
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+        doc.text(`${r.staff.first_name} ${r.staff.last_name}`, left, y)
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90)
+        doc.text(
+          r.staff.hourly_rate != null ? `$${r.staff.hourly_rate.toFixed(2)}/hr` : 'no rate on file',
+          pageW - left, y, { align: 'right' }
+        )
+        doc.setTextColor(0); y += 16
+
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+        doc.text('Date', cols[0], y)
+        doc.text('In', cols[1], y)
+        doc.text('Out', cols[2], y)
+        doc.text('Hours', cols[3], y)
+        doc.text('Pay', cols[4], y)
+        doc.text('Notes', cols[5], y)
+        y += 6
+        doc.setDrawColor(200); doc.line(left, y, pageW - left, y); y += 12
+
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+        for (const sh of r.shifts) {
+          newPageIfNeeded(18)
+          const hrs = shiftHours(sh)
+          const notes = [sh.auto_closed ? 'auto-closed' : '', sh.edited_at ? 'edited' : '', !sh.clock_out_at ? 'OPEN' : '']
+            .filter(Boolean).join(', ')
+          doc.text(fmtDate(sh.clock_in_at), cols[0], y)
+          doc.text(fmtTime(sh.clock_in_at), cols[1], y)
+          doc.text(sh.clock_out_at ? fmtTime(sh.clock_out_at) : '--', cols[2], y)
+          doc.text(hrs != null ? hrs.toFixed(2) : '--', cols[3], y)
+          doc.text(
+            hrs != null && r.staff.hourly_rate != null ? `$${(hrs * r.staff.hourly_rate).toFixed(2)}` : '--',
+            cols[4], y
+          )
+          if (notes) { doc.setTextColor(180, 60, 0); doc.text(notes, cols[5], y); doc.setTextColor(0) }
+          y += 14
+        }
+
+        newPageIfNeeded(28)
+        doc.setDrawColor(200); doc.line(left, y, pageW - left, y); y += 14
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+        doc.text('Total', cols[0], y)
+        doc.text(`${r.hours.toFixed(2)} hrs`, cols[3], y)
+        doc.text(r.pay != null ? `$${r.pay.toFixed(2)}` : '--', cols[4], y)
+        y += 30
+      }
+
+      if (rows.length > 1) {
+        newPageIfNeeded(40)
+        doc.setDrawColor(0); doc.setLineWidth(1); doc.line(left, y, pageW - left, y); y += 18
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
+        doc.text('All Staff Total', left, y)
+        doc.text(`${grandHours.toFixed(2)} hrs`, cols[3], y)
+        doc.text(`$${grandPay.toFixed(2)}`, cols[4], y)
+      }
+
+      doc.save(`tacos-miranda-timecards_${fileStamp()}.pdf`)
+    } catch (e: any) {
+      alert(`Couldn't build the PDF: ${e?.message || e}`)
+    }
+    setExporting(false)
+  }
+
   // ─── totals ────────────────────────────────────────────────────────────────
   const closedHours = shifts.filter((s) => s.clock_out_at).reduce((sum, s) => sum + (shiftHours(s) || 0), 0)
   const openCount = shifts.filter((s) => !s.clock_out_at).length
@@ -277,6 +545,15 @@ export default function AdminPins() {
     padding: '6px 10px', fontSize: 12, cursor: 'pointer',
     display: 'inline-flex', alignItems: 'center', gap: 6,
   }
+  const dateInput: React.CSSProperties = {
+    background: '#121212', color: '#fff', border: '1px solid #333', borderRadius: 8,
+    padding: '6px 10px', fontSize: 13, colorScheme: 'dark',
+  }
+  const pth: React.CSSProperties = {
+    textAlign: 'left', padding: '8px 6px', color: '#888', fontSize: 11,
+    textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700,
+  }
+  const ptd: React.CSSProperties = { padding: '10px 6px', color: '#fff', fontSize: 14 }
   const rangeBtn = (active: boolean): React.CSSProperties => ({
     background: active ? '#fbbf24' : 'transparent',
     color: active ? '#0a0a0a' : '#aaa',
@@ -365,9 +642,122 @@ export default function AdminPins() {
 
           {/* ─── Time history detail ────────────────────────────────────── */}
           <div style={cardStyle}>
-            {!selected && (
+            {/* Window picker: presets fill the dates, the dates are the truth. */}
+            <div style={{ borderBottom: '1px solid #222', paddingBottom: 16, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {(['today', 'this_week', 'last_week', 'this_month', 'last_month'] as Preset[]).map((pr) => (
+                  <button key={pr} style={rangeBtn(preset === pr)} onClick={() => applyPreset(pr)}>
+                    {PRESET_LABELS[pr]}
+                  </button>
+                ))}
+                <button style={rangeBtn(preset === 'custom')} onClick={() => setPreset('custom')}>
+                  {PRESET_LABELS.custom}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ fontSize: 12, color: '#888' }}>From</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  max={endDate}
+                  onChange={(e) => { setPreset('custom'); setStartDate(e.target.value) }}
+                  style={dateInput}
+                />
+                <label style={{ fontSize: 12, color: '#888' }}>To</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={(e) => { setPreset('custom'); setEndDate(e.target.value) }}
+                  style={dateInput}
+                />
+
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => setViewAll((v) => !v)}
+                    style={{ ...ghostBtn, borderColor: viewAll ? '#fbbf24' : '#333', color: viewAll ? '#fbbf24' : '#fff' }}
+                  >
+                    <Users size={14} /> {viewAll ? 'Viewing All Staff' : 'All Staff'}
+                  </button>
+                  <button onClick={exportCSV} style={ghostBtn}>
+                    <Download size={14} /> CSV
+                  </button>
+                  <button onClick={exportPDF} disabled={exporting} style={ghostBtn}>
+                    <FileText size={14} /> {exporting ? 'Building…' : 'PDF'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>
+                Showing {fmtRangeLabel(startDate, endDate)}
+                {viewAll ? ' for all staff' : selected ? ` for ${selected.first_name}` : ''}
+              </div>
+            </div>
+
+            {viewAll && (
+              <div style={{ marginBottom: selected ? 24 : 0 }}>
+                {allLoading ? (
+                  <div style={{ color: '#666', fontSize: 14, padding: 24, textAlign: 'center' }}>Loading all staff…</div>
+                ) : payrollRows.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: 14, padding: 24, textAlign: 'center' }}>
+                    No shifts for anyone in this date range.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #2a2a2a' }}>
+                          <th style={pth}>Employee</th>
+                          <th style={{ ...pth, textAlign: 'right' }}>Shifts</th>
+                          <th style={{ ...pth, textAlign: 'right' }}>Hours</th>
+                          <th style={{ ...pth, textAlign: 'right' }}>Rate</th>
+                          <th style={{ ...pth, textAlign: 'right' }}>Est. Pay</th>
+                          <th style={{ ...pth, textAlign: 'right' }}>Open</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payrollRows.map((r) => (
+                          <tr
+                            key={r.staff.id}
+                            onClick={() => setSelectedId(r.staff.id)}
+                            style={{ borderBottom: '1px solid #1c1c1c', cursor: 'pointer' }}
+                          >
+                            <td style={ptd}>{r.staff.first_name} {r.staff.last_name}</td>
+                            <td style={{ ...ptd, textAlign: 'right' }}>{r.shifts.length}</td>
+                            <td style={{ ...ptd, textAlign: 'right', fontWeight: 700 }}>{r.hours.toFixed(2)}</td>
+                            <td style={{ ...ptd, textAlign: 'right', color: '#888' }}>
+                              {r.staff.hourly_rate != null ? `$${r.staff.hourly_rate.toFixed(2)}` : '—'}
+                            </td>
+                            <td style={{ ...ptd, textAlign: 'right' }}>
+                              {r.pay != null ? `$${r.pay.toFixed(2)}` : '—'}
+                            </td>
+                            <td style={{ ...ptd, textAlign: 'right', color: r.openCount > 0 ? '#f59e0b' : '#555' }}>
+                              {r.openCount || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr style={{ borderTop: '2px solid #2a2a2a' }}>
+                          <td style={{ ...ptd, fontWeight: 800 }}>Total</td>
+                          <td style={{ ...ptd, textAlign: 'right' }} />
+                          <td style={{ ...ptd, textAlign: 'right', fontWeight: 800 }}>{grandHours.toFixed(2)}</td>
+                          <td style={{ ...ptd, textAlign: 'right' }} />
+                          <td style={{ ...ptd, textAlign: 'right', fontWeight: 800 }}>${grandPay.toFixed(2)}</td>
+                          <td style={{ ...ptd, textAlign: 'right' }} />
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p style={{ color: '#555', fontSize: 12, marginTop: 10 }}>
+                      Click a row to open that person's shifts below. Hours exclude shifts that are still open.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!selected && !viewAll && (
               <div style={{ color: '#666', fontSize: 14, textAlign: 'center', padding: 48 }}>
-                Select a staff member to view their time history.
+                Select a staff member to view their time history, or hit All Staff.
               </div>
             )}
 
@@ -389,13 +779,6 @@ export default function AdminPins() {
                   </button>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                  {(['today', 'week', 'month', 'all'] as Range[]).map((r) => (
-                    <button key={r} style={rangeBtn(range === r)} onClick={() => setRange(r)}>
-                      {r === 'today' ? 'Today' : r === 'week' ? 'This Week' : r === 'month' ? 'This Month' : 'All Time'}
-                    </button>
-                  ))}
-                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
                   <div style={{ background: '#121212', border: '1px solid #222', borderRadius: 10, padding: 14 }}>

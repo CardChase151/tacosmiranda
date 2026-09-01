@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2, Power, PowerOff } from 'lucide-react'
+import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2, Power, PowerOff, Printer, ChevronDown, ChevronRight, Check } from 'lucide-react'
 
 type Order = {
   id: string
   order_number: string
   customer_name: string | null
+  customer_phone: string | null
   total: number
   subtotal: number
   tax: number
@@ -16,6 +17,21 @@ type Order = {
   paid_at: string | null
   created_at: string
   status: string
+  printed: boolean | null
+  reprint_requested: boolean | null
+  special_instructions: string | null
+}
+
+type OrderLine = {
+  id: string
+  item_name: string
+  quantity: number | null
+  unit_price: number
+  line_total: number
+  special_instructions: string | null
+  sort_order: number | null
+  modifiers: { modifier_name: string; upcharge: number | null }[]
+  ingredients: { ingredient_name: string; action: string; extra_charge: number | null }[]
 }
 
 type Range = 'today' | 'week' | 'month' | 'ytd' | 'all'
@@ -49,7 +65,7 @@ export default function AdminDashboard() {
     const since = startOf(range).toISOString()
     const { data } = await supabase
       .from('orders')
-      .select('id, order_number, customer_name, total, subtotal, tax, stripe_fee_amount, application_fee_amount, net_amount, paid_at, created_at, status')
+      .select('id, order_number, customer_name, customer_phone, total, subtotal, tax, stripe_fee_amount, application_fee_amount, net_amount, paid_at, created_at, status, printed, reprint_requested, special_instructions')
       .in('status', ['pending', 'confirmed', 'completed'])
       .gte('paid_at', since)
       .order('paid_at', { ascending: false })
@@ -87,6 +103,57 @@ export default function AdminDashboard() {
       setOrderingEnabled(next)
       setConfirmOpen(false)
     }
+  }
+
+  // ── Order detail + reprint ────────────────────────────────────────────────
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [lines, setLines] = useState<Record<string, OrderLine[]>>({})
+  const [loadingLines, setLoadingLines] = useState<string | null>(null)
+  const [reprinting, setReprinting] = useState<string | null>(null)
+  const [reprintQueued, setReprintQueued] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = async (orderId: string) => {
+    if (expandedId === orderId) { setExpandedId(null); return }
+    setExpandedId(orderId)
+    if (lines[orderId]) return
+
+    setLoadingLines(orderId)
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('id, item_name, quantity, unit_price, line_total, special_instructions, sort_order')
+      .eq('order_id', orderId)
+      .order('sort_order')
+
+    const itemIds = (items || []).map(i => i.id)
+    const [modRes, ingRes] = itemIds.length
+      ? await Promise.all([
+          supabase.from('order_item_modifiers').select('order_item_id, modifier_name, upcharge').in('order_item_id', itemIds),
+          supabase.from('order_item_ingredients').select('order_item_id, ingredient_name, action, extra_charge').in('order_item_id', itemIds),
+        ])
+      : [{ data: [] }, { data: [] }]
+
+    const built: OrderLine[] = (items || []).map(i => ({
+      ...i,
+      modifiers: (modRes.data || []).filter((m: any) => m.order_item_id === i.id),
+      ingredients: (ingRes.data || []).filter((g: any) => g.order_item_id === i.id),
+    })) as OrderLine[]
+
+    setLines(prev => ({ ...prev, [orderId]: built }))
+    setLoadingLines(null)
+  }
+
+  // Re-queues the ticket for the CloudPRNT printer. Order status is untouched;
+  // the printer clears the flag when it confirms the job.
+  const handleReprint = async (orderId: string) => {
+    setReprinting(orderId)
+    const { error } = await supabase
+      .from('orders')
+      .update({ reprint_requested: true, reprint_requested_at: new Date().toISOString() })
+      .eq('id', orderId)
+    setReprinting(null)
+    if (error) { alert(`Couldn't queue the reprint: ${error.message}`); return }
+    setReprintQueued(prev => ({ ...prev, [orderId]: true }))
+    setTimeout(() => setReprintQueued(prev => ({ ...prev, [orderId]: false })), 6000)
   }
 
   const totals = useMemo(() => {
@@ -242,27 +309,110 @@ export default function AdminDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ ...th, width: 32 }} />
                     <th style={th}>Order #</th>
                     <th style={th}>Customer</th>
                     <th style={th}>Paid</th>
                     <th style={{ ...th, textAlign: 'right' }}>Gross</th>
                     <th style={{ ...th, textAlign: 'right' }}>Fees</th>
                     <th style={{ ...th, textAlign: 'right' }}>Net</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Receipt</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.slice(0, 50).map(o => {
                     const fees = (o.stripe_fee_amount || 0) + (o.application_fee_amount || 0)
                     const net = o.net_amount ?? o.total - fees
+                    const open = expandedId === o.id
+                    const queued = !!reprintQueued[o.id] || !!o.reprint_requested
                     return (
-                      <tr key={o.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={td}>{o.order_number}</td>
-                        <td style={td}>{o.customer_name || 'Guest'}</td>
-                        <td style={td}>{o.paid_at ? new Date(o.paid_at).toLocaleString() : '—'}</td>
-                        <td style={{ ...td, textAlign: 'right' }}>${Number(o.total || 0).toFixed(2)}</td>
-                        <td style={{ ...td, textAlign: 'right', color: '#ef4444' }}>-${fees.toFixed(2)}</td>
-                        <td style={{ ...td, textAlign: 'right', color: '#34d399', fontWeight: 600 }}>${net.toFixed(2)}</td>
-                      </tr>
+                      <Fragment key={o.id}>
+                        <tr
+                          onClick={() => toggleExpand(o.id)}
+                          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: open ? 'rgba(167,139,250,0.06)' : 'transparent' }}
+                        >
+                          <td style={{ ...td, color: 'var(--gray)' }}>
+                            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </td>
+                          <td style={td}>{o.order_number}</td>
+                          <td style={td}>{o.customer_name || 'Guest'}</td>
+                          <td style={td}>{o.paid_at ? new Date(o.paid_at).toLocaleString() : '—'}</td>
+                          <td style={{ ...td, textAlign: 'right' }}>${Number(o.total || 0).toFixed(2)}</td>
+                          <td style={{ ...td, textAlign: 'right', color: '#ef4444' }}>-${fees.toFixed(2)}</td>
+                          <td style={{ ...td, textAlign: 'right', color: '#34d399', fontWeight: 600 }}>${net.toFixed(2)}</td>
+                          <td style={{ ...td, textAlign: 'right' }}>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleReprint(o.id) }}
+                              disabled={reprinting === o.id || queued}
+                              title={queued ? 'Waiting for the printer to pick it up' : 'Print this receipt again'}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                border: queued ? '1px solid rgba(52,211,153,0.5)' : '1px solid var(--border)',
+                                background: 'transparent',
+                                color: queued ? '#34d399' : 'var(--gold)',
+                                cursor: reprinting === o.id || queued ? 'default' : 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {reprinting === o.id
+                                ? <Loader2 size={13} className="spin" />
+                                : queued ? <Check size={13} /> : <Printer size={13} />}
+                              {queued ? 'Queued' : 'Reprint'}
+                            </button>
+                          </td>
+                        </tr>
+                        {open && (
+                          <tr style={{ background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td colSpan={8} style={{ padding: '4px 8px 18px 40px' }}>
+                              {loadingLines === o.id ? (
+                                <p style={{ color: 'var(--gray)', fontSize: 13 }}><Loader2 size={13} className="spin" /> Loading items…</p>
+                              ) : (lines[o.id] || []).length === 0 ? (
+                                <p style={{ color: 'var(--gray)', fontSize: 13 }}>No line items recorded for this order.</p>
+                              ) : (
+                                <>
+                                  {(lines[o.id] || []).map(li => (
+                                    <div key={li.id} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                                        <span style={{ color: 'var(--gold)', fontSize: 14, fontWeight: 600 }}>
+                                          {li.quantity || 1}× {li.item_name}
+                                        </span>
+                                        <span style={{ color: 'var(--gold)', fontSize: 14 }}>${Number(li.line_total || 0).toFixed(2)}</span>
+                                      </div>
+                                      {li.modifiers.map((m, i) => (
+                                        <div key={`m${i}`} style={{ color: 'var(--gray)', fontSize: 12, paddingLeft: 14 }}>
+                                          + {m.modifier_name}{Number(m.upcharge) > 0 ? ` ($${Number(m.upcharge).toFixed(2)})` : ''}
+                                        </div>
+                                      ))}
+                                      {li.ingredients.map((g, i) => (
+                                        <div key={`g${i}`} style={{ color: g.action === 'remove' ? '#ef4444' : '#60a5fa', fontSize: 12, paddingLeft: 14 }}>
+                                          {g.action === 'remove' ? 'NO' : 'EXTRA'} {g.ingredient_name}
+                                          {Number(g.extra_charge) > 0 ? ` ($${Number(g.extra_charge).toFixed(2)})` : ''}
+                                        </div>
+                                      ))}
+                                      {li.special_instructions && (
+                                        <div style={{ color: '#eab308', fontSize: 12, paddingLeft: 14, fontStyle: 'italic' }}>
+                                          "{li.special_instructions}"
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--gray)' }}>
+                                    {o.customer_phone && <span>Phone: {o.customer_phone}</span>}
+                                    <span>Status: {o.status}</span>
+                                    <span>Printed: {o.printed ? 'yes' : 'no'}</span>
+                                  </div>
+                                  {o.special_instructions && (
+                                    <p style={{ color: '#eab308', fontSize: 13, marginTop: 8, fontStyle: 'italic' }}>
+                                      Order note: "{o.special_instructions}"
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>

@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import SEO from './components/SEO'
 import Header from './components/Header'
 import Footer from './components/Footer'
-import EmailBanner from './components/EmailBanner'
 import AdminLoginModal from './components/AdminLoginModal'
 import Home from './pages/Home'
+import Menu from './pages/Menu'
+import NotFound from './pages/NotFound'
 import PrintMenu from './pages/PrintMenu'
 import Screen from './pages/Screen'
 import OrderOnline from './pages/OrderOnline'
@@ -34,6 +35,24 @@ function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const location = useLocation()
   usePageViewTracker()
+
+  // Scroll to a hash target after navigation. Retries briefly because the
+  // section only exists once the menu data has come back.
+  useEffect(() => {
+    if (!location.hash) return
+    const id = location.hash.slice(1)
+    let tries = 0
+    const tick = window.setInterval(() => {
+      const el = document.getElementById(id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' })
+        window.clearInterval(tick)
+      } else if (++tries > 20) {
+        window.clearInterval(tick)
+      }
+    }, 100)
+    return () => window.clearInterval(tick)
+  }, [location.pathname, location.hash])
   const isPrintPage = location.pathname === '/admin/print-menu'
   const isOrderPage = location.pathname === '/order'
   const isScreenPage = location.pathname === '/screen'
@@ -47,6 +66,7 @@ function AppContent() {
       <main style={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/menu" element={<Menu />} />
           <Route path="/admin/print-menu" element={<RequireRole role="admin"><PrintMenu /></RequireRole>} />
           <Route path="/screen" element={<Screen />} />
           <Route path="/order" element={<OrderOnline />} />
@@ -58,10 +78,10 @@ function AppContent() {
           <Route path="/admin/pins" element={<RequireRole role="admin"><AdminPins /></RequireRole>} />
           {/* Hidden staff time-clock kiosk. The trailing slug is the only thing protecting this URL — keep it out of any nav, sitemap, or link. */}
           <Route path="/clock-x9k2m7p4q3" element={<StaffClock />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       {!chromeless && !isOrderPage && <Footer />}
-      {!chromeless && !isOrderPage && <EmailBanner />}
       {showLogin && <AdminLoginModal onClose={() => setShowLogin(false)} />}
     </div>
   )

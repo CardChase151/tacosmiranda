@@ -302,14 +302,15 @@ serve(async (req) => {
   // POST: Printer polling
   if (req.method === 'POST') {
     try {
+      // Oldest job waiting: a new unprinted order, or any order an admin asked
+      // to reprint from the dashboard (paper-out / bad-cut recovery).
       const { data: order } = await supabase
         .from('orders')
         .select('id, order_number, special_instructions')
-        .eq('printed', false)
-        .eq('status', 'pending')
+        .or('and(printed.eq.false,status.eq.pending),reprint_requested.eq.true')
         .order('created_at', { ascending: true })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       if (order) {
         // Diagnostic orders are served as raw StarPRNT bytes instead of markup.
@@ -396,7 +397,18 @@ serve(async (req) => {
     const jobToken = url.searchParams.get('token') || url.searchParams.get('jobToken')
 
     if (jobToken) {
-      await supabase.from('orders').update({ printed: true, status: 'confirmed' }).eq('id', jobToken)
+      // Always clear the reprint flag. Only advance a still-pending order to
+      // confirmed so reprinting a completed order doesn't rewind its status.
+      const { data: current } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', jobToken)
+        .maybeSingle()
+
+      const patch: Record<string, unknown> = { printed: true, reprint_requested: false }
+      if (!current || current.status === 'pending') patch.status = 'confirmed'
+
+      await supabase.from('orders').update(patch).eq('id', jobToken)
     }
 
     return new Response(JSON.stringify({ success: true }), {

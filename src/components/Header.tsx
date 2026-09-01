@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Activity, User, Users } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Lock, LogOut, Printer, CreditCard, BarChart3, Menu as MenuIcon, X, ShoppingBag, Activity, User, Users, Settings, ChevronDown, Database } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
 
@@ -9,12 +10,33 @@ interface HeaderProps {
 
 const MOBILE_BREAKPOINT = 768
 
+interface AdminLink {
+  to: string
+  label: string
+  icon: React.ReactNode
+  ownerOnly?: boolean
+}
+
+// Every back-of-house destination in one place. Previously these were eleven
+// separate items in five colors sitting in the customer nav.
+const ADMIN_LINKS: AdminLink[] = [
+  { to: '/admin/dashboard', label: 'Dashboard', icon: <BarChart3 size={15} /> },
+  { to: '/admin/analytics', label: 'Analytics', icon: <Activity size={15} /> },
+  { to: '/admin/menu-data', label: 'Menu Data', icon: <Database size={15} /> },
+  { to: '/admin/pins', label: 'Staff & Time Clock', icon: <Users size={15} /> },
+  { to: '/admin/print-menu', label: 'Print Menu', icon: <Printer size={15} /> },
+  { to: '/admin/billing', label: 'Billing', icon: <CreditCard size={15} />, ownerOnly: true },
+]
+
 export default function Header({ onAdminClick }: HeaderProps) {
   const { isAdmin, isOwner, user, signOut } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false
   )
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
   const [orderingEnabled, setOrderingEnabled] = useState(false)
 
   useEffect(() => {
@@ -40,6 +62,20 @@ export default function Header({ onAdminClick }: HeaderProps) {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  useEffect(() => { setManageOpen(false) }, [location.pathname])
+
+  useEffect(() => {
+    if (!manageOpen) return
+    const close = () => setManageOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [manageOpen])
+
+  const adminLinks = ADMIN_LINKS.filter(l => !l.ownerOnly || isOwner)
+  const onAdminRoute = location.pathname.startsWith('/admin')
+  // Admins have a business to run; their own takeout history is not it.
+  const showMyAccount = showOrderingNav && !isAdmin && !isOwner
+
   // Lock body scroll while drawer is open.
   useEffect(() => {
     if (drawerOpen) {
@@ -62,8 +98,39 @@ export default function Header({ onAdminClick }: HeaderProps) {
     cursor: 'pointer',
   }
 
+  // The menu and location sections live on the homepage. From any other
+  // route these used to be dead buttons; now they route home first and the
+  // hash effect in App scrolls once Home has rendered.
+  // A nav item is active when it points at the route you're on. Active items
+  // stay gold on mouse-out instead of falling back to gray.
+  const isActive = (path: string) => location.pathname === path
+
+  const navLinkProps = (path: string) => {
+    const active = isActive(path)
+    return {
+      style: {
+        ...navTextStyle,
+        textDecoration: 'none',
+        color: active ? 'var(--gold)' : 'var(--gray)',
+        fontWeight: active ? 700 : 500,
+        borderBottom: active ? '2px solid var(--gold)' : '2px solid transparent',
+        paddingBottom: 2,
+      } as React.CSSProperties,
+      onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+        e.currentTarget.style.color = 'var(--gold)'
+      },
+      onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+        e.currentTarget.style.color = active ? 'var(--gold)' : 'var(--gray)'
+      },
+    }
+  }
+
   const scrollToSection = (id: string) => {
     setDrawerOpen(false)
+    if (location.pathname !== '/') {
+      navigate(`/#${id}`)
+      return
+    }
     setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
@@ -75,6 +142,7 @@ export default function Header({ onAdminClick }: HeaderProps) {
   // ---------- DESKTOP LAYOUT ----------
   if (!isMobile) {
     return (
+      <>
       <header style={{
         position: 'sticky',
         top: 0,
@@ -86,21 +154,15 @@ export default function Header({ onAdminClick }: HeaderProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        overflow: 'hidden',
       }}>
-        <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <img src="/logo-white-transparent.png" alt="Tacos Miranda" style={{ height: 40 }} />
-        </a>
+        </Link>
 
+        {/* Customer nav. Identical for everyone, no role colors. */}
         <nav style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          <button
-            onClick={() => scrollToSection('menu')}
-            style={navTextStyle}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
-          >
-            Menu
-          </button>
+          <Link to="/" {...navLinkProps('/')}>Home</Link>
+          <Link to="/menu" {...navLinkProps('/menu')}>Menu</Link>
           <button
             onClick={() => scrollToSection('location')}
             style={navTextStyle}
@@ -110,101 +172,86 @@ export default function Header({ onAdminClick }: HeaderProps) {
             Location
           </button>
           {showOrderingNav && (
-            <>
-              <a
-                href="/order"
-                style={{ ...navTextStyle, color: 'var(--gold)', textDecoration: 'none', fontWeight: 600 }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-              >
-                Order Online
-              </a>
-              <a
-                href="/my-orders"
-                style={{ ...navTextStyle, color: 'var(--gray)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
-              >
-                <User size={14} /> My Account
-              </a>
-            </>
-          )}
-          {isAdmin && (
-            <>
-              <a
-                href="/admin/dashboard"
-                style={{ ...navTextStyle, color: '#a78bfa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#c4b5fd'}
-                onMouseLeave={e => e.currentTarget.style.color = '#a78bfa'}
-              >
-                <BarChart3 size={14} /> Dashboard
-              </a>
-              <a
-                href="/admin/analytics"
-                style={{ ...navTextStyle, color: '#f472b6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#f9a8d4'}
-                onMouseLeave={e => e.currentTarget.style.color = '#f472b6'}
-              >
-                <Activity size={14} /> Analytics
-              </a>
-              <a
-                href="/admin/menu-data"
-                style={{ ...navTextStyle, color: '#fbbf24', textDecoration: 'none' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-              >
-                Menu Data
-              </a>
-              <a
-                href="/admin/pins"
-                style={{ ...navTextStyle, color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
-                onMouseLeave={e => e.currentTarget.style.color = '#60a5fa'}
-              >
-                <Users size={14} /> Pins
-              </a>
-            </>
-          )}
-          {isOwner && (
-            <a
-              href="/admin/billing"
-              style={{ ...navTextStyle, color: '#34d399', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
-              onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
-              onMouseLeave={e => e.currentTarget.style.color = '#34d399'}
+            <Link
+              to="/order"
+              style={{
+                ...navTextStyle,
+                color: 'var(--gold)',
+                textDecoration: 'none',
+                fontWeight: isActive('/order') ? 800 : 600,
+                borderBottom: isActive('/order') ? '2px solid var(--gold)' : '2px solid transparent',
+                paddingBottom: 2,
+              }}
             >
-              <CreditCard size={14} /> Billing
-            </a>
+              Order Online
+            </Link>
+          )}
+          {showMyAccount && (
+            <Link
+              to="/my-orders"
+              {...navLinkProps('/my-orders')}
+              style={{ ...navLinkProps('/my-orders').style, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <User size={14} /> My Account
+            </Link>
           )}
 
+          {/* Everything back-of-house lives behind one button. */}
           {isAdmin ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <a
-                href="/admin/print-menu"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5,
-                  textDecoration: 'none', transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
-              >
-                <Printer size={14} /> Print Menu
-              </a>
-              <span style={{ fontSize: 12, color: 'var(--gold)', opacity: 0.7, letterSpacing: 0.5 }}>
-                Logged in as {user?.email?.split('@')[0] || 'Admin'}
-              </span>
+            <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
               <button
-                onClick={handleSignOut}
+                onClick={() => setManageOpen(o => !o)}
                 style={{
-                  background: 'none', border: 'none', color: 'var(--gold)', opacity: 0.6,
-                  transition: 'opacity 0.2s', padding: 4, display: 'flex', alignItems: 'center',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '8px 14px', borderRadius: 8,
+                  border: onAdminRoute || manageOpen ? '1px solid var(--gold)' : '1px solid var(--border)',
+                  background: onAdminRoute || manageOpen ? 'rgba(200,168,78,0.12)' : 'transparent',
+                  color: 'var(--gold)', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '0.6')}
-                title="Sign Out"
               >
-                <LogOut size={18} />
+                <Settings size={15} /> Manage
+                <ChevronDown size={14} style={{ transform: manageOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
               </button>
+
+              {manageOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 232,
+                  background: '#111', border: '1px solid var(--border)', borderRadius: 10,
+                  boxShadow: '0 18px 44px rgba(0,0,0,0.6)', overflow: 'hidden', zIndex: 200,
+                }}>
+                  {adminLinks.map(l => (
+                    <Link
+                      key={l.to}
+                      to={l.to}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '11px 16px', fontSize: 14, textDecoration: 'none',
+                        color: isActive(l.to) ? 'var(--gold)' : 'var(--white)',
+                        background: isActive(l.to) ? 'rgba(200,168,78,0.10)' : 'transparent',
+                        fontWeight: isActive(l.to) ? 700 : 500,
+                      }}
+                    >
+                      {l.icon} {l.label}
+                    </Link>
+                  ))}
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--gray)', marginBottom: 8 }}>
+                      Signed in as <span style={{ color: 'var(--gold)' }}>{user?.email?.split('@')[0] || 'admin'}</span>
+                    </div>
+                    <button
+                      onClick={handleSignOut}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 7, width: '100%',
+                        background: 'none', border: '1px solid var(--border)', borderRadius: 7,
+                        color: 'var(--gray)', padding: '7px 10px', fontSize: 13, cursor: 'pointer',
+                      }}
+                    >
+                      <LogOut size={13} /> Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <button
@@ -222,6 +269,33 @@ export default function Header({ onAdminClick }: HeaderProps) {
           )}
         </nav>
       </header>
+
+      {/* Second row: only while you are actually inside admin. */}
+      {isAdmin && onAdminRoute && (
+        <div style={{
+          position: 'sticky', top: 65, zIndex: 99,
+          background: 'rgba(10,10,10,0.96)', backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid var(--border)',
+          padding: '0 24px', display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto',
+        }}>
+          {adminLinks.map(l => (
+            <Link
+              key={l.to}
+              to={l.to}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '11px 14px', fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap',
+                color: isActive(l.to) ? 'var(--gold)' : 'var(--gray)',
+                fontWeight: isActive(l.to) ? 700 : 500,
+                borderBottom: isActive(l.to) ? '2px solid var(--gold)' : '2px solid transparent',
+              }}
+            >
+              {l.icon} {l.label}
+            </Link>
+          ))}
+        </div>
+      )}
+      </>
     )
   }
 
@@ -241,9 +315,9 @@ export default function Header({ onAdminClick }: HeaderProps) {
         justifyContent: 'space-between',
         overflow: 'hidden',
       }}>
-        <a href="#top" style={{ display: 'flex', alignItems: 'center' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
           <img src="/logo-white-transparent.png" alt="Tacos Miranda" style={{ height: 36 }} />
-        </a>
+        </Link>
 
         <button
           onClick={() => setDrawerOpen(true)}
@@ -331,28 +405,33 @@ export default function Header({ onAdminClick }: HeaderProps) {
 
             {/* Nav Items */}
             <nav style={{ flex: 1, padding: '12px 0', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-              <DrawerLink onClick={() => scrollToSection('menu')} label="Menu" />
+              <DrawerLink href="/" label="Home" active={isActive('/')} onNavigate={() => setDrawerOpen(false)} />
+              <DrawerLink href="/menu" label="Menu" active={isActive('/menu')} onNavigate={() => setDrawerOpen(false)} />
               <DrawerLink onClick={() => scrollToSection('location')} label="Location" />
 
               {showOrderingNav && (
-                <>
-                  <DrawerLink href="/order" label="Order Online" icon={<ShoppingBag size={16} />} accentColor="var(--gold)" emphasized />
-                  <DrawerLink href="/my-orders" label="My Account" icon={<User size={16} />} accentColor="var(--white)" />
-                </>
+                <DrawerLink href="/order" active={isActive('/order')} onNavigate={() => setDrawerOpen(false)}
+                  label="Order Online" icon={<ShoppingBag size={16} />} accentColor="var(--gold)" emphasized />
+              )}
+              {showMyAccount && (
+                <DrawerLink href="/my-orders" active={isActive('/my-orders')} onNavigate={() => setDrawerOpen(false)}
+                  label="My Account" icon={<User size={16} />} />
               )}
 
               {isAdmin && (
                 <>
-                  <DrawerDivider label="Admin" />
-                  <DrawerLink href="/admin/dashboard" label="Dashboard" icon={<BarChart3 size={16} />} accentColor="#a78bfa" />
-                  <DrawerLink href="/admin/analytics" label="Analytics" icon={<Activity size={16} />} accentColor="#f472b6" />
-                  <DrawerLink href="/admin/pins" label="Pins" icon={<Users size={16} />} accentColor="#60a5fa" />
-                  <DrawerLink href="/admin/print-menu" label="Print Menu" icon={<Printer size={16} />} accentColor="var(--gold)" muted />
+                  <DrawerDivider label="Manage" />
+                  {adminLinks.map(l => (
+                    <DrawerLink
+                      key={l.to}
+                      href={l.to}
+                      label={l.label}
+                      icon={l.icon}
+                      active={isActive(l.to)}
+                      onNavigate={() => setDrawerOpen(false)}
+                    />
+                  ))}
                 </>
-              )}
-
-              {isOwner && (
-                <DrawerLink href="/admin/billing" label="Billing" icon={<CreditCard size={16} />} accentColor="#34d399" emphasized />
               )}
             </nav>
 
@@ -419,24 +498,29 @@ interface DrawerLinkProps {
   label: string
   href?: string
   onClick?: () => void
+  onNavigate?: () => void
+  active?: boolean
   icon?: React.ReactNode
   accentColor?: string
   emphasized?: boolean
   muted?: boolean
 }
 
-function DrawerLink({ label, href, onClick, icon, accentColor, emphasized, muted }: DrawerLinkProps) {
-  const color = accentColor || 'var(--white)'
+function DrawerLink({ label, href, onClick, onNavigate, active, icon, accentColor, emphasized, muted }: DrawerLinkProps) {
+  const color = active ? 'var(--gold)' : (accentColor || 'var(--white)')
   const baseStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
     padding: '14px 20px',
+    background: active ? 'rgba(200, 168, 78, 0.08)' : 'none',
     color,
-    background: 'none',
     border: 'none',
+    // Gold rail on the active row, drawn with an inset shadow so it doesn't
+    // fight the `border: none` shorthand above.
+    boxShadow: active ? 'inset 3px 0 0 var(--gold)' : 'none',
     fontSize: emphasized ? 15 : 14,
-    fontWeight: emphasized ? 700 : 500,
+    fontWeight: active || emphasized ? 700 : 500,
     letterSpacing: 0.6,
     textDecoration: 'none',
     cursor: 'pointer',
@@ -447,10 +531,10 @@ function DrawerLink({ label, href, onClick, icon, accentColor, emphasized, muted
   }
   if (href) {
     return (
-      <a href={href} style={baseStyle}>
+      <Link to={href} style={baseStyle} onClick={onNavigate}>
         {icon}
         {label}
-      </a>
+      </Link>
     )
   }
   return (

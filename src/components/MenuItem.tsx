@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2, EyeOff, Eye } from 'lucide-react'
+import { Pencil, Trash2, EyeOff, Eye, ImageIcon, X } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem as MenuItemType, MenuCategory } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
@@ -16,6 +16,7 @@ interface Props {
 export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories = [] }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [photoOpen, setPhotoOpen] = useState(false)
   const [toggling, setToggling] = useState(false)
   const is86 = !!item.is_86
 
@@ -61,6 +62,28 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
           }}>
             {item.name}
           </span>
+          {item.image_url && (
+            <button
+              onClick={() => setPhotoOpen(true)}
+              aria-label={`See a photo of ${item.name}`}
+              title="See photo"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 2,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                color: light ? '#8B6914' : 'var(--gold)',
+                opacity: 0.75,
+                alignSelf: 'center',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
+            >
+              <ImageIcon size={15} />
+            </button>
+          )}
           {isAdmin && is86 && (
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase',
@@ -146,6 +169,43 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
           </p>
         )}
       </div>
+
+      {photoOpen && item.image_url && (
+        <div
+          onClick={() => setPhotoOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1500,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+            padding: 20,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: 640, width: '100%' }}>
+            <img
+              src={item.image_url}
+              alt={item.name}
+              style={{ width: '100%', borderRadius: 12, display: 'block' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginTop: 12 }}>
+              <span style={{ color: 'var(--white)', fontSize: 18, fontWeight: 700 }}>{item.name}</span>
+              <span style={{ color: 'var(--gold)', fontSize: 18, fontWeight: 700 }}>${item.price.toFixed(2)}</span>
+            </div>
+            <button
+              onClick={() => setPhotoOpen(false)}
+              aria-label="Close photo"
+              style={{
+                position: 'absolute', top: -14, right: -14,
+                width: 40, height: 40, borderRadius: 20,
+                background: '#1a1a1a', border: '1px solid var(--border)',
+                color: 'var(--white)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {editOpen && (
         <EditItemModal

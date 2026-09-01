@@ -32,3 +32,8 @@ yarn-error.log*
 
 # Internal ops notes (public repo)
 MAINTENANCE_NOTICE.md
+
+# Internal docs - never publish (repo is PUBLIC)
+journal.md
+PLAN.md
+doordash-api-notes.md

@@ -311,6 +311,34 @@ export default function ItemCustomizer({ item, modifierGroups, itemIngredients, 
         }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Photo banner. Only when the item has one — no gray placeholder,
+            since coverage across the menu is partial by design. */}
+        {item.image_url && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            aspectRatio: '16 / 9',
+            overflow: 'hidden',
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            background: '#111',
+          }}>
+            <img
+              src={item.image_url}
+              alt={item.name}
+              loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+            {/* Fade into the modal so the header text below stays readable. */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0) 55%, rgba(26,26,26,0.95) 100%)',
+              pointerEvents: 'none',
+            }} />
+          </div>
+        )}
+
         {/* Header */}
         <div style={{
           display: 'flex',

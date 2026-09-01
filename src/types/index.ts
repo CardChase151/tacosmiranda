@@ -14,6 +14,7 @@ export interface MenuItem {
   sort_order: number
   is_test?: boolean
   is_86?: boolean
+  image_url?: string | null
 }
 
 export interface EmailSubscriber {
