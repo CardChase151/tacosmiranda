@@ -25,6 +25,8 @@ interface MenuFormat {
   // Ceiling on the type scale. Per-format so a big sheet can grow without
   // changing the sizes already dialled in on the smaller ones.
   maxScale: number
+  // Physical width of one captured sheet, used to hit a real print DPI.
+  sheetWidthIn: number
 }
 
 const FORMATS: MenuFormat[] = [
@@ -32,7 +34,7 @@ const FORMATS: MenuFormat[] = [
     key: 'screen',
     label: 'Wide Sheet',
     blurb: 'The 16:9 landscape layout. Drives the in-store TVs, and prints as a single wide page.',
-    width: 1200, height: 675, cols: 3, maxScale: 2.2,
+    width: 1200, height: 675, cols: 3, maxScale: 2.2, sheetWidthIn: 11,
     paper: 'For the TVs there is no paper — use the video or image export. To print it, use '
          + 'letter 8.5 x 11 in landscape, or tabloid 11 x 17 landscape if you want it larger.',
     approxType: 'one page per meal',
@@ -41,7 +43,7 @@ const FORMATS: MenuFormat[] = [
     key: 'folded',
     label: 'Folded Menu',
     blurb: 'A four-panel booklet per meal: cover, then the menu across three pages.',
-    width: 825, height: 1275, cols: 1, maxScale: 2.2,
+    width: 825, height: 1275, cols: 1, maxScale: 2.2, sheetWidthIn: 11,
     paper: 'One sheet of letter 8.5 x 11 per meal, fed LANDSCAPE, printed double-sided, then '
          + 'folded once down the middle. That gives four 5.5 x 8.5 panels. Plain 20 lb copy paper '
          + 'works; 32 lb or 65 lb cardstock feels like a real menu. Any office printer — no print shop.',
@@ -93,15 +95,13 @@ export default function PrintMenu() {
   const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
 
   // Helper: capture element at full size
-  // Phones cannot allocate the canvases desktop can. A 1650x2550 poster at
-  // scale 4 is a 67 megapixel bitmap, roughly 270 MB, and mobile Safari simply
-  // stops. Budget the pixels instead of hardcoding a multiplier.
+  // Capture at a real print resolution rather than an arbitrary multiplier.
+  // 300 DPI is what a print shop wants; anything beyond it is invisible on
+  // paper and only inflates the file. Phones get 150 to stay inside memory.
   const captureScaleFor = (el: HTMLElement) => {
-    const budget = isMobile ? 9_000_000 : 46_000_000
-    const w = el.offsetWidth || 1
-    const h = el.offsetHeight || 1
-    const desired = isMobile ? 2 : 4
-    return Math.max(1, Math.min(desired, Math.sqrt(budget / (w * h))))
+    const dpi = isMobile ? 150 : 300
+    const px = el.offsetWidth || format.width
+    return Math.max(1, Math.min(4, (dpi * format.sheetWidthIn) / px))
   }
 
   const captureElement = async (id: string) => {
@@ -148,7 +148,7 @@ export default function PrintMenu() {
       const pdf = new jsPDF({ orientation: orientOf(canvases[0]), unit: 'px', format: pageOf(canvases[0]) })
       canvases.forEach((c, i) => {
         if (i > 0) pdf.addPage(pageOf(c), orientOf(c))
-        pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, c.width / 2, c.height / 2)
+        pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width / 2, c.height / 2)
       })
       pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
     } catch (e) { console.error(e) } finally { setStatus('') }
@@ -170,7 +170,7 @@ export default function PrintMenu() {
     const pdf = new jsPDF({ orientation: orientOf(canvases[0]), unit: 'px', format: pageOf(canvases[0]) })
     canvases.forEach((c, i) => {
       if (i > 0) pdf.addPage(pageOf(c), orientOf(c))
-      pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, c.width / 2, c.height / 2)
+      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width / 2, c.height / 2)
     })
     return pdf
   }
