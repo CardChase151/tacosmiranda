@@ -93,6 +93,17 @@ export default function PrintMenu() {
   const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
 
   // Helper: capture element at full size
+  // Phones cannot allocate the canvases desktop can. A 1650x2550 poster at
+  // scale 4 is a 67 megapixel bitmap, roughly 270 MB, and mobile Safari simply
+  // stops. Budget the pixels instead of hardcoding a multiplier.
+  const captureScaleFor = (el: HTMLElement) => {
+    const budget = isMobile ? 9_000_000 : 46_000_000
+    const w = el.offsetWidth || 1
+    const h = el.offsetHeight || 1
+    const desired = isMobile ? 2 : 4
+    return Math.max(1, Math.min(desired, Math.sqrt(budget / (w * h))))
+  }
+
   const captureElement = async (id: string) => {
     const el = document.getElementById(id)
     if (!el) return null
@@ -101,9 +112,19 @@ export default function PrintMenu() {
     const origMargin = wrapper?.style.marginBottom || ''
     if (wrapper) { wrapper.style.transform = 'none'; wrapper.style.marginBottom = '0' }
     await new Promise(r => setTimeout(r, 150))
-    const canvas = await html2canvas(el, { scale: 4, backgroundColor: null, useCORS: true, logging: false })
-    if (wrapper) { wrapper.style.transform = origTransform; wrapper.style.marginBottom = origMargin }
-    return canvas
+    try {
+      return await html2canvas(el, {
+        scale: captureScaleFor(el),
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+      })
+    } catch (e) {
+      console.error('capture failed', id, e)
+      return null
+    } finally {
+      if (wrapper) { wrapper.style.transform = origTransform; wrapper.style.marginBottom = origMargin }
+    }
   }
 
   // Download PDF (both pages in one file)
@@ -130,8 +151,7 @@ export default function PrintMenu() {
         pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, c.width / 2, c.height / 2)
       })
       pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
-    } catch (e) { console.error(e) }
-    setStatus('')
+    } catch (e) { console.error(e) } finally { setStatus('') }
   }
 
   // Download Images (2 separate PNGs)
@@ -159,13 +179,19 @@ export default function PrintMenu() {
     setStatus('Building preview...')
     try {
       const pdf = await buildPDF()
-      if (pdf) {
+      if (!pdf) {
+        alert('Could not build the preview. Try again, or open this page on a computer.')
+      } else {
         // Popup blockers can swallow the new tab; fall back to a download.
         const opened = window.open(pdf.output('bloburl') as unknown as string, '_blank')
         if (!opened) pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
       }
-    } catch (e) { console.error(e) }
-    setStatus('')
+    } catch (e) {
+      console.error(e)
+      alert('Could not build the preview. Try again, or open this page on a computer.')
+    } finally {
+      setStatus('')
+    }
   }
 
   const handleOpenPDF = () => {
@@ -209,8 +235,7 @@ export default function PrintMenu() {
         link.click()
         await new Promise(r => setTimeout(r, 400))
       }
-    } catch (e) { console.error(e) }
-    setStatus('')
+    } catch (e) { console.error(e) } finally { setStatus('') }
   }
 
   // Download Video as MP4 using VideoEncoder + mp4-muxer
