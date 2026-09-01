@@ -68,6 +68,12 @@ export default function PrintMenu() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // Mounting the sheets costs a dozen synchronous layout passes each. On a
+  // phone that blocks the first paint, so nothing renders until asked for.
+  const [sheetsMounted, setSheetsMounted] = useState(!isMobile)
+  const [pendingExport, setPendingExport] = useState<null | 'pdf' | 'images'>(null)
+  useEffect(() => { if (!isMobile) setSheetsMounted(true) }, [isMobile])
   const format = FORMATS.find(f => f.key === formatKey) as MenuFormat
 
   const fetchMenu = useCallback(async () => {
@@ -149,7 +155,7 @@ export default function PrintMenu() {
     return pdf
   }
 
-  const handleOpenPDF = async () => {
+  const runOpenPDF = async () => {
     setStatus('Building preview...')
     try {
       const pdf = await buildPDF()
@@ -162,7 +168,36 @@ export default function PrintMenu() {
     setStatus('')
   }
 
+  const handleOpenPDF = () => {
+    if (!sheetsMounted) {
+      setStatus('Building preview...')
+      setPendingExport('pdf')
+      setSheetsMounted(true)
+      return
+    }
+    runOpenPDF()
+  }
+
+  // Once the sheets are up, give React a frame to commit and the type-fitting
+  // effects a beat to settle before capturing.
+  useEffect(() => {
+    if (!sheetsMounted || !pendingExport) return
+    const t = window.setTimeout(() => {
+      setPendingExport(null)
+      if (pendingExport === 'pdf') runOpenPDF()
+      else handleImages()
+    }, 700)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetsMounted, pendingExport])
+
   const handleImages = async () => {
+    if (!sheetsMounted) {
+      setStatus('Generating images...')
+      setPendingExport('images')
+      setSheetsMounted(true)
+      return
+    }
     setStatus('Generating images...')
     try {
       for (const t of exportTargets) {
@@ -424,8 +459,9 @@ export default function PrintMenu() {
       {/* Previews — every sheet sits in one scale group so they print alike.
           Off-screen on mobile: still laid out for the export, just not shown. */}
       <div style={isMobile
-        ? { position: 'fixed', left: -20000, top: 0, width: 2000, pointerEvents: 'none' }
+        ? { position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }
         : undefined}>
+      {sheetsMounted && (
       <ScaleGroupProvider>
       {formatKey === 'folded' ? (
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 44, alignItems: 'center' }}>
@@ -501,6 +537,7 @@ export default function PrintMenu() {
       </div>
       )}
       </ScaleGroupProvider>
+      )}
       </div>
     </div>
   )
