@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useRef, useContext, createContext, useMemo } from 'react'
-import { FileImage, FileText, Film, ArrowLeft, Eye, Smartphone } from 'lucide-react'
+import { FileImage, Film, ArrowLeft, Eye, Printer, X } from 'lucide-react'
 import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
 import { supabase } from '../config/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -10,7 +9,7 @@ import { MenuCategory, MenuItem } from '../types'
 // Each format is a real paper size at 150 dpi, plus what the owner has to buy
 // to print it. Type auto-fits whatever canvas it lands on, so a bigger sheet
 // simply means bigger type rather than a different layout.
-type FormatKey = 'screen' | 'folded' | 'poster'
+type FormatKey = 'screen' | 'folded' | 'handout' | 'poster'
 
 interface MenuFormat {
   key: FormatKey
@@ -27,6 +26,8 @@ interface MenuFormat {
   maxScale: number
   // Physical width of one captured sheet, used to hit a real print DPI.
   sheetWidthIn: number
+  // The @page size the browser prints this format at.
+  pageCss: string
 }
 
 const FORMATS: MenuFormat[] = [
@@ -34,7 +35,7 @@ const FORMATS: MenuFormat[] = [
     key: 'screen',
     label: 'Wide Sheet',
     blurb: 'The 16:9 landscape layout. Drives the in-store TVs, and prints as a single wide page.',
-    width: 1200, height: 675, cols: 3, maxScale: 2.2, sheetWidthIn: 11,
+    width: 1200, height: 675, cols: 3, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
     paper: 'For the TVs there is no paper — use the video or image export. To print it, use '
          + 'letter 8.5 x 11 in landscape, or tabloid 11 x 17 landscape if you want it larger.',
     approxType: 'one page per meal',
@@ -43,7 +44,7 @@ const FORMATS: MenuFormat[] = [
     key: 'folded',
     label: 'Folded Menu',
     blurb: 'A four-panel booklet per meal: cover, then the menu across three pages.',
-    width: 825, height: 1275, cols: 1, maxScale: 2.2, sheetWidthIn: 11,
+    width: 825, height: 1275, cols: 1, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
     paper: 'One sheet of letter 8.5 x 11 per meal, fed LANDSCAPE, printed double-sided, then '
          + 'folded once down the middle. That gives four 5.5 x 8.5 panels. Plain 20 lb copy paper '
          + 'works; 32 lb or 65 lb cardstock feels like a real menu. Any office printer — no print shop.',
@@ -74,7 +75,9 @@ export default function PrintMenu() {
   // Mounting the sheets costs a dozen synchronous layout passes each. On a
   // phone that blocks the first paint, so nothing renders until asked for.
   const [sheetsMounted, setSheetsMounted] = useState(!isMobile)
-  const [pendingExport, setPendingExport] = useState<null | 'pdf' | 'images'>(null)
+  const [pendingExport, setPendingExport] = useState<null | 'images'>(null)
+  const [pendingPrint, setPendingPrint] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   useEffect(() => { if (!isMobile) setSheetsMounted(true) }, [isMobile])
   const format = FORMATS.find(f => f.key === formatKey) as MenuFormat
 
@@ -95,15 +98,22 @@ export default function PrintMenu() {
   const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
 
   // Helper: capture element at full size
-  // Capture at a real print resolution rather than an arbitrary multiplier.
-  // 300 DPI is what a print shop wants; anything beyond it is invisible on
-  // paper and only inflates the file. Phones get 150 to stay inside memory.
-  const captureScaleFor = (el: HTMLElement) => {
-    const dpi = isMobile ? 150 : 300
-    const px = el.offsetWidth || format.width
-    return Math.max(1, Math.min(4, (dpi * format.sheetWidthIn) / px))
+  // ── Printing ───────────────────────────────────────────────────────────────
+  // The sheets are already laid out at true paper dimensions, so the browser's
+  // own print pipeline renders them as vector: sharp at any zoom, selectable
+  // text, a few hundred KB instead of a hundred megabytes. No canvas capture,
+  // which is also what used to hang on phones and bloat the file.
+  const handlePrint = () => {
+    setPreviewOpen(false)
+    if (!sheetsMounted) {
+      setPendingPrint(true)
+      setSheetsMounted(true)
+      return
+    }
+    window.setTimeout(() => window.print(), 80)
   }
 
+  // PNG export survives only for the TV screens, which genuinely need bitmaps.
   const captureElement = async (id: string) => {
     const el = document.getElementById(id)
     if (!el) return null
@@ -113,8 +123,9 @@ export default function PrintMenu() {
     if (wrapper) { wrapper.style.transform = 'none'; wrapper.style.marginBottom = '0' }
     await new Promise(r => setTimeout(r, 150))
     try {
+      const dpi = isMobile ? 150 : 300
       return await html2canvas(el, {
-        scale: captureScaleFor(el),
+        scale: Math.max(1, Math.min(4, (dpi * format.sheetWidthIn) / (el.offsetWidth || format.width))),
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
@@ -126,96 +137,6 @@ export default function PrintMenu() {
       if (wrapper) { wrapper.style.transform = origTransform; wrapper.style.marginBottom = origMargin }
     }
   }
-
-  // Download PDF (both pages in one file)
-  const handlePDF = async () => {
-    setStatus('Generating PDF...')
-    try {
-      const canvases: HTMLCanvasElement[] = []
-      for (const t of exportTargets) {
-        const c = await captureElement(t.id)
-        if (c) canvases.push(c)
-      }
-      if (canvases.length === 0) return
-
-      // Each captured sheet becomes its own page at its own aspect. For the
-      // folded menu that is four landscape pages: outside, inside, per meal.
-      const pageOf = (c: HTMLCanvasElement) =>
-        [c.width / 2, c.height / 2] as [number, number]
-      const orientOf = (c: HTMLCanvasElement) =>
-        (c.width >= c.height ? 'landscape' : 'portrait') as 'landscape' | 'portrait'
-
-      const pdf = new jsPDF({ orientation: orientOf(canvases[0]), unit: 'px', format: pageOf(canvases[0]) })
-      canvases.forEach((c, i) => {
-        if (i > 0) pdf.addPage(pageOf(c), orientOf(c))
-        pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width / 2, c.height / 2)
-      })
-      pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
-    } catch (e) { console.error(e) } finally { setStatus('') }
-  }
-
-  // Download Images (2 separate PNGs)
-  const buildPDF = async () => {
-    const canvases: HTMLCanvasElement[] = []
-    for (const t of exportTargets) {
-      const c = await captureElement(t.id)
-      if (c) canvases.push(c)
-    }
-    if (canvases.length === 0) return null
-
-    const pageOf = (c: HTMLCanvasElement) => [c.width / 2, c.height / 2] as [number, number]
-    const orientOf = (c: HTMLCanvasElement) =>
-      (c.width >= c.height ? 'landscape' : 'portrait') as 'landscape' | 'portrait'
-
-    const pdf = new jsPDF({ orientation: orientOf(canvases[0]), unit: 'px', format: pageOf(canvases[0]) })
-    canvases.forEach((c, i) => {
-      if (i > 0) pdf.addPage(pageOf(c), orientOf(c))
-      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width / 2, c.height / 2)
-    })
-    return pdf
-  }
-
-  const runOpenPDF = async () => {
-    setStatus('Building preview...')
-    try {
-      const pdf = await buildPDF()
-      if (!pdf) {
-        alert('Could not build the preview. Try again, or open this page on a computer.')
-      } else {
-        // Popup blockers can swallow the new tab; fall back to a download.
-        const opened = window.open(pdf.output('bloburl') as unknown as string, '_blank')
-        if (!opened) pdf.save(`TacosMiranda_Menu_${format.key}.pdf`)
-      }
-    } catch (e) {
-      console.error(e)
-      alert('Could not build the preview. Try again, or open this page on a computer.')
-    } finally {
-      setStatus('')
-    }
-  }
-
-  const handleOpenPDF = () => {
-    if (!sheetsMounted) {
-      setStatus('Building preview...')
-      setPendingExport('pdf')
-      setSheetsMounted(true)
-      return
-    }
-    runOpenPDF()
-  }
-
-  // Once the sheets are up, give React a frame to commit and the type-fitting
-  // effects a beat to settle before capturing.
-  useEffect(() => {
-    if (!sheetsMounted || !pendingExport) return
-    const t = window.setTimeout(() => {
-      setPendingExport(null)
-      if (pendingExport === 'pdf') runOpenPDF()
-      else handleImages()
-    }, 700)
-    return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheetsMounted, pendingExport])
 
   const handleImages = async () => {
     if (!sheetsMounted) {
@@ -343,10 +264,29 @@ export default function PrintMenu() {
 
   // Show the sheets close to full size. Shrinking a 1200px sheet into a 520px
   // box made readable type look microscopic on screen.
-  const previewScale = Math.min(1040 / format.width, 780 / format.height)
-  const foldScale = Math.min(1040 / (PANEL_W * 2), 700 / PANEL_H)
+  const previewScale = previewOpen
+    ? Math.min(1, (typeof window !== 'undefined' ? window.innerWidth - 48 : 1040) / format.width)
+    : Math.min(1040 / format.width, 780 / format.height)
+  const foldScale = previewOpen
+    ? Math.min(1, (typeof window !== 'undefined' ? window.innerWidth - 48 : 1040) / (PANEL_W * 2))
+    : Math.min(1040 / (PANEL_W * 2), 700 / PANEL_H)
   const foldGap = -Math.round(PANEL_H * (1 - foldScale))
   const previewGap = -Math.round(format.height * (1 - previewScale))
+
+  const primaryBtn: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    padding: '13px 24px', borderRadius: 10, border: 'none',
+    background: 'var(--gold)', color: 'var(--black)',
+    fontSize: 15, fontWeight: 700, cursor: 'pointer',
+  }
+  const secondaryBtn: React.CSSProperties = {
+    ...primaryBtn, background: 'transparent', color: 'var(--gold)',
+    border: '1px solid var(--gold)',
+  }
+  const ghostBtn: React.CSSProperties = {
+    ...primaryBtn, background: 'transparent', color: '#bbb',
+    border: '1px solid #333', fontWeight: 600, fontSize: 14,
+  }
 
   const btnStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 8,
@@ -368,12 +308,73 @@ export default function PrintMenu() {
         <div style={{ width: 100 }} />
       </div>
 
-      {/* Format picker + what to buy */}
-      <div style={{ maxWidth: 1200, margin: '0 auto 28px' }}>
-        <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-          Format
-        </p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+      <style>{`
+        /* The sheets are laid out at true paper size, so printing them straight
+           gives vector output: sharp, selectable, a few hundred KB. */
+        @media print {
+          @page { size: ${format.pageCss}; margin: 0; }
+          body * { visibility: hidden !important; }
+          #sheet-stage, #sheet-stage * { visibility: visible !important; }
+          #sheet-stage {
+            position: absolute !important;
+            left: 0 !important; top: 0 !important;
+            width: auto !important; height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+          }
+          #sheet-stage .sheet-label { display: none !important; }
+          #sheet-stage .sheet-scale { transform: none !important; margin: 0 !important; }
+          #sheet-stage .sheet-page { break-after: page; page-break-after: always; }
+          #sheet-stage .sheet-page:last-child { break-after: auto; page-break-after: auto; }
+        }
+        /* Off-screen until previewed or printed. Kept in layout so the type
+           fitting can measure; display:none would break it. */
+        .stage-hidden { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+        .stage-open {
+          position: fixed; inset: 0; z-index: 900; overflow: auto;
+          background: #2f2f2f; padding: 64px 16px 40px;
+          display: flex; flex-direction: column; align-items: center; gap: 28px;
+        }
+      `}</style>
+
+      {previewOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 901,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', background: 'rgba(15,15,15,0.96)',
+          borderBottom: '1px solid #333',
+        }}>
+          <span style={{ color: 'var(--gold)', fontSize: 14, fontWeight: 700 }}>
+            {format.label} preview
+          </span>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handlePrint} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '9px 16px', borderRadius: 8, border: 'none',
+              background: 'var(--gold)', color: 'var(--black)',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Printer size={15} /> Print
+            </button>
+            <button
+              onClick={() => setPreviewOpen(false)}
+              aria-label="Close preview"
+              style={{
+                background: 'none', border: '1px solid #444', borderRadius: 8,
+                color: '#ddd', width: 38, height: 38, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Pick a menu type */}
+      <div style={{ maxWidth: 1100, margin: '0 auto 24px' }}>
+        <Step n={1} label="Choose a menu" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
           {FORMATS.map(f => {
             const active = f.key === formatKey
             return (
@@ -381,111 +382,68 @@ export default function PrintMenu() {
                 key={f.key}
                 onClick={() => setFormatKey(f.key)}
                 style={{
-                  textAlign: 'left',
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: active ? '1px solid var(--gold)' : '1px solid #333',
-                  background: active ? 'rgba(200,168,78,0.12)' : 'transparent',
-                  color: active ? 'var(--gold)' : '#bbb',
-                  cursor: 'pointer',
-                  minWidth: 190,
-                  flex: '1 1 190px',
+                  textAlign: 'left', padding: '14px 16px', borderRadius: 12,
+                  border: active ? '1px solid var(--gold)' : '1px solid #2c2c2c',
+                  background: active ? 'rgba(200,168,78,0.12)' : 'rgba(255,255,255,0.02)',
+                  color: active ? 'var(--gold)' : '#c9c9c9', cursor: 'pointer',
                 }}
               >
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>{f.label}</div>
-                <div style={{ fontSize: 12, opacity: 0.8, lineHeight: 1.4 }}>{f.blurb}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{f.label}</div>
+                <div style={{ fontSize: 12, opacity: 0.85, lineHeight: 1.45 }}>{f.blurb}</div>
               </button>
             )
           })}
         </div>
+      </div>
 
+      {/* 2. What paper it needs */}
+      <div style={{ maxWidth: 1100, margin: '0 auto 24px' }}>
+        <Step n={2} label="Paper to use" />
         <div style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid #2a2a2a',
-          borderRadius: 10,
-          padding: '14px 18px',
+          background: 'rgba(255,255,255,0.03)', border: '1px solid #2a2a2a',
+          borderRadius: 12, padding: '16px 20px',
         }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
-            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Paper to use
-            </span>
-            <span style={{ color: '#777', fontSize: 12 }}>
-              {format.width} x {format.height} px &middot; {format.approxType}
-            </span>
-          </div>
-          <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: 0 }}>{format.paper}</p>
-          {formatKey === 'folded' && (
-            <p style={{ color: '#888', fontSize: 13, lineHeight: 1.6, margin: '10px 0 0' }}>
-              The PDF exports the two inside panels. Hand them to the print shop and ask for
-              a double-sided 11 x 17 with a half fold; the cover and contact panels go on the
-              reverse side.
-            </p>
+          <p style={{ color: '#d8d8d8', fontSize: 14.5, lineHeight: 1.65, margin: 0 }}>{format.paper}</p>
+          <p style={{ color: '#6f6f6f', fontSize: 12, margin: '10px 0 0' }}>
+            Prints at {format.pageCss} &middot; {format.approxType}
+          </p>
+        </div>
+      </div>
+
+      {/* 3. Do something with it */}
+      <div style={{ maxWidth: 1100, margin: '0 auto 44px' }}>
+        <Step n={3} label="Preview or print" />
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => { setSheetsMounted(true); setPreviewOpen(true) }} style={primaryBtn}>
+            <Eye size={18} /> Preview
+          </button>
+          <button onClick={handlePrint} style={secondaryBtn}>
+            <Printer size={18} /> Print or Save as PDF
+          </button>
+          {formatKey === 'screen' && (
+            <>
+              <button onClick={handleImages} disabled={!!status} style={{ ...ghostBtn, opacity: status ? 0.5 : 1 }}>
+                <FileImage size={17} /> Images for TV
+              </button>
+              <button onClick={handleVideos} disabled={!!status} style={{ ...ghostBtn, opacity: status ? 0.5 : 1 }}>
+                <Film size={17} /> Videos for TV
+              </button>
+            </>
           )}
         </div>
+        <p style={{ color: '#6f6f6f', fontSize: 12.5, margin: '12px 0 0', lineHeight: 1.6 }}>
+          Print opens your printer dialog. Pick your printer to print, or choose
+          &ldquo;Save as PDF&rdquo; as the destination to get a file for the print shop.
+          {status && <span style={{ color: 'var(--gold)' }}> &nbsp;{status}</span>}
+        </p>
       </div>
-
-      {/* Download Buttons */}
-      <div style={{ maxWidth: 1200, margin: '0 auto 48px', display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-        {isMobile && (
-          <button onClick={handleOpenPDF} disabled={!!status} style={{ ...btnStyle, background: 'transparent', color: 'var(--gold)', border: '1px solid var(--gold)', opacity: status ? 0.5 : 1 }}>
-            <Eye size={18} /> Open PDF
-          </button>
-        )}
-        <button onClick={handlePDF} disabled={!!status} style={{ ...btnStyle, background: 'var(--gold)', color: 'var(--black)', opacity: status ? 0.5 : 1 }}>
-          <FileText size={18} /> Download PDF
-        </button>
-        <button onClick={handleImages} disabled={!!status} style={{ ...btnStyle, background: '#FFFFFF', color: '#111', opacity: status ? 0.5 : 1 }}>
-          <FileImage size={18} /> Download Images
-        </button>
-        {formatKey === 'screen' && (
-          <button onClick={handleVideos} disabled={!!status} style={{ ...btnStyle, background: '#333', color: '#FFF', opacity: status ? 0.5 : 1 }}>
-            <Film size={18} /> Download Videos (for TV)
-          </button>
-        )}
-      </div>
-
-      {status && (
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <p style={{ color: 'var(--gold)', fontSize: 14, fontStyle: 'italic' }}>{status}</p>
-        </div>
-      )}
-
-      {isMobile && (
-        <div style={{
-          maxWidth: 620, margin: '0 auto 32px', textAlign: 'center',
-          background: 'rgba(255,255,255,0.04)', border: '1px solid #2a2a2a',
-          borderRadius: 12, padding: '26px 22px',
-        }}>
-          <Smartphone size={26} style={{ color: 'var(--gold)', marginBottom: 10 }} />
-          <p style={{ color: 'var(--white)', fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>
-            Preview on a bigger screen
-          </p>
-          <p style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.6, margin: '0 0 18px' }}>
-            These sheets are printed at 11 to 17 inches wide. Squeezed onto a phone
-            they are too small to judge. Open the PDF instead — it is the exact file
-            the printer gets.
-          </p>
-          <button
-            onClick={handleOpenPDF}
-            disabled={!!status}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '14px 26px', borderRadius: 10, border: 'none',
-              background: 'var(--gold)', color: 'var(--black)',
-              fontSize: 15, fontWeight: 700, cursor: 'pointer',
-              opacity: status ? 0.5 : 1,
-            }}
-          >
-            <Eye size={18} /> {status ? 'Building…' : 'Open PDF Preview'}
-          </button>
-        </div>
-      )}
 
       {/* Previews — every sheet sits in one scale group so they print alike.
           Off-screen on mobile: still laid out for the export, just not shown. */}
-      <div style={isMobile
-        ? { position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }
-        : undefined}>
+      <div
+        id="sheet-stage"
+        className={previewOpen ? 'stage-open' : 'stage-hidden'}
+      >
       {sheetsMounted && (
       <ScaleGroupProvider>
       {formatKey === 'folded' ? (
@@ -511,20 +469,20 @@ export default function PrintMenu() {
             ]
             return (
               <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-                <p style={{ color: 'var(--gold)', fontSize: 15, fontWeight: 700, letterSpacing: 1, margin: 0 }}>
+                <p className="sheet-label" style={{ color: 'var(--gold)', fontSize: 15, fontWeight: 700, letterSpacing: 1, margin: 0 }}>
                   {meal} — one letter sheet, landscape, folded once
                 </p>
                 {sheets.map(sh => (
                   <div key={sh.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                    <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>
+                    <p className="sheet-label" style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>
                       {sh.label}
                     </p>
-                    <div style={{
+                    <div className="sheet-scale" style={{
                       transform: `scale(${foldScale})`,
                       transformOrigin: 'top center',
                       marginBottom: foldGap,
                     }}>
-                      <div id={sh.id} style={{ border: '1px solid #333' }}>
+                      <div id={sh.id} className="sheet-page">
                         <FoldedSheet left={sh.left} right={sh.right} />
                       </div>
                     </div>
@@ -539,9 +497,9 @@ export default function PrintMenu() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 36, alignItems: 'center' }}>
           {/* Breakfast Preview */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Breakfast</p>
-            <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
-              <div id="menu-breakfast">
+            <p className="sheet-label" style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Breakfast</p>
+            <div className="sheet-scale" style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
+              <div id="menu-breakfast" className="sheet-page">
                 <V1Page id="breakfast" cats={breakfastCats} getItems={getItems} title="Breakfast"
                   width={format.width} height={format.height} cols={format.cols} maxScale={format.maxScale} />
               </div>
@@ -550,9 +508,9 @@ export default function PrintMenu() {
 
           {/* Lunch & Dinner Preview */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <p style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Lunch & Dinner</p>
-            <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
-              <div id="menu-lunch">
+            <p className="sheet-label" style={{ color: 'var(--gray)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Lunch & Dinner</p>
+            <div className="sheet-scale" style={{ transform: `scale(${previewScale})`, transformOrigin: 'top center', marginBottom: previewGap }}>
+              <div id="menu-lunch" className="sheet-page">
                 <V1Page id="lunch" cats={lunchCats} getItems={getItems} title="Lunch & Dinner"
                   width={format.width} height={format.height} cols={format.cols} maxScale={format.maxScale} />
               </div>
@@ -798,6 +756,26 @@ function FoldedSheet({ left, right }: { left: React.ReactNode; right: React.Reac
     <div style={{ display: 'flex', background: '#FFFFFF' }}>
       {left}
       {right}
+    </div>
+  )
+}
+
+function Step({ n, label }: { n: number; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+      <span style={{
+        width: 22, height: 22, borderRadius: 11, background: 'var(--gold)',
+        color: 'var(--black)', fontSize: 12, fontWeight: 800,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {n}
+      </span>
+      <span style={{
+        color: 'var(--white)', fontSize: 13, fontWeight: 700,
+        letterSpacing: 1, textTransform: 'uppercase',
+      }}>
+        {label}
+      </span>
     </div>
   )
 }
