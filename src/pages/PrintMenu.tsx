@@ -35,7 +35,7 @@ const FORMATS: MenuFormat[] = [
     key: 'screen',
     label: 'Wide Sheet',
     blurb: 'The 16:9 landscape layout. Drives the in-store TVs, and prints as a single wide page.',
-    width: 1200, height: 675, cols: 3, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
+    width: 1056, height: 816, cols: 3, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
     paper: 'For the TVs there is no paper — use the video or image export. To print it, use '
          + 'letter 8.5 x 11 in landscape, or tabloid 11 x 17 landscape if you want it larger.',
     approxType: 'one page per meal',
@@ -44,11 +44,31 @@ const FORMATS: MenuFormat[] = [
     key: 'folded',
     label: 'Folded Menu',
     blurb: 'A four-panel booklet per meal: cover, then the menu across three pages.',
-    width: 825, height: 1275, cols: 1, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
+    width: 528, height: 816, cols: 1, maxScale: 2.2, sheetWidthIn: 11, pageCss: '11in 8.5in',
     paper: 'One sheet of letter 8.5 x 11 per meal, fed LANDSCAPE, printed double-sided, then '
          + 'folded once down the middle. That gives four 5.5 x 8.5 panels. Plain 20 lb copy paper '
          + 'works; 32 lb or 65 lb cardstock feels like a real menu. Any office printer — no print shop.',
     approxType: 'cover + 3 pages per meal',
+  },
+  {
+    key: 'handout',
+    label: 'Handout',
+    blurb: 'One flat page per meal. The cheapest thing to hand someone.',
+    width: 816, height: 1056, cols: 2, maxScale: 3.2, sheetWidthIn: 8.5, pageCss: '8.5in 11in',
+    paper: 'Letter 8.5 x 11 portrait, one page per meal. Print the two meals back to back for '
+         + 'a single double-sided sheet. Plain copy paper is fine; 32 lb or 65 lb cardstock '
+         + 'survives grease and repeat handling. Any office printer.',
+    approxType: 'a normal menu size',
+  },
+  {
+    key: 'poster',
+    label: 'Large Poster',
+    blurb: 'One big sheet per meal for the wall. The largest type of the four.',
+    width: 1056, height: 1632, cols: 2, maxScale: 5, sheetWidthIn: 11, pageCss: '11in 17in',
+    paper: 'Tabloid 11 x 17 portrait, single-sided, one sheet per meal. Ask for 100 lb gloss or '
+         + 'matte cover stock so it hangs flat and survives a kitchen. Most home printers stop at '
+         + '8.5 x 11 — this one is a print shop job.',
+    approxType: 'the biggest option',
   },
 ]
 
@@ -313,6 +333,8 @@ export default function PrintMenu() {
            gives vector output: sharp, selectable, a few hundred KB. */
         @media print {
           @page { size: ${format.pageCss}; margin: 0; }
+          html, body { width: auto !important; height: auto !important; background: #fff !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body * { visibility: hidden !important; }
           #sheet-stage, #sheet-stage * { visibility: visible !important; }
           #sheet-stage {
@@ -646,8 +668,11 @@ function useFitScale(id: string, deps: unknown[], maxScale: number = MAX_SCALE) 
 // One sheet of letter paper, landscape, printed both sides and folded once
 // down the middle. That gives four 5.5 x 8.5 panels: a cover and three pages
 // of menu. Each meal gets its own sheet.
-const PANEL_W = 825   // 5.5in at 150dpi
-const PANEL_H = 1275  // 8.5in
+// CSS px, at the 96 px/inch the print pipeline actually uses. These were
+// sized for a 150dpi raster capture; printing vector needs true inches or the
+// sheet overflows the page and spills onto extra ones.
+const PANEL_W = 528   // 5.5in x 96
+const PANEL_H = 816   // 8.5in x 96
 
 // Split categories across N panels in menu order, minimising the fullest
 // panel. Order is preserved, so this searches cut points rather than
