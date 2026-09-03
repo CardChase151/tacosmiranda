@@ -637,13 +637,20 @@ function useFitScale(id: string, deps: unknown[], maxScale: number = MAX_SCALE) 
     // enormous holes in the page.
     const fillsAtLead = (lead: number) => {
       box.style.setProperty('--menu-lead', String(lead))
+      // getBoundingClientRect reports SCALED pixels because the preview shrinks
+      // the sheet, while clientHeight is unscaled layout. Comparing the two
+      // directly made a poster previewing at 0.48 look half as tall as it is,
+      // so the leading kept expanding until content ran off the page.
+      const rectH = box.getBoundingClientRect().height
+      const scale = box.clientHeight > 0 && rectH > 0 ? rectH / box.clientHeight : 1
       const tallest = Math.max(
         ...Array.from(box.children).map(col => {
           const el = col as HTMLElement
           const blocks = el.children.length
           if (!blocks) return 0
           const last = el.children[blocks - 1] as HTMLElement
-          return last.getBoundingClientRect().bottom - el.getBoundingClientRect().top
+          const measured = last.getBoundingClientRect().bottom - el.getBoundingClientRect().top
+          return measured / scale
         })
       )
       return tallest <= box.clientHeight
@@ -931,9 +938,6 @@ function V1Page({ cats, getItems, id, title, width, height, cols, maxScale }: Pa
         </div>
       )}
 
-      <div style={{ textAlign: 'center', marginTop: 8, paddingTop: 8, borderTop: `1px solid ${accentDim}` }}>
-        <p style={{ fontSize: 10, color: textPrimary, fontWeight: 600, margin: 0 }}>21582 Brookhurst St, Huntington Beach, CA 92646 | (657) 845-4011</p>
-      </div>
     </div>
   )
 }
