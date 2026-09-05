@@ -37,3 +37,6 @@ MAINTENANCE_NOTICE.md
 journal.md
 PLAN.md
 doordash-api-notes.md
+
+# playwright-cli session snapshots
+.playwright-cli/
