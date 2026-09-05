@@ -115,7 +115,11 @@ export default function PrintMenu() {
 
   const breakfastCats = categories.filter(c => c.meal_type === 'breakfast')
   const lunchCats = categories.filter(c => c.meal_type === 'lunch_dinner')
-  const getItems = (catId: string) => items.filter(i => i.category_id === catId).sort((a, b) => a.sort_order - b.sort_order)
+  // 86'd items must never reach a printed menu or a TV board.
+  const getItems = (catId: string) =>
+    items
+      .filter(i => i.category_id === catId && !i.is_86 && !i.is_test)
+      .sort((a, b) => a.sort_order - b.sort_order)
 
   // Helper: capture element at full size
   // ── Printing ───────────────────────────────────────────────────────────────

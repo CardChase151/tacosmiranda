@@ -80,11 +80,15 @@ export default function Menu() {
     ? categories.filter(c => searchedCategoryIds.includes(c.id))
     : filteredCategories
 
+  // An 86'd item is out of stock, so customers should not see it at all.
+  // Admins still do (struck through, with the 86 badge) so they can undo it.
+  const forDisplay = (list: MenuItem[]) => isAdmin ? list : list.filter(i => !i.is_86)
+
   const displayItems = (catId: string) => {
     if (searchLower) {
-      return searchedItems.filter(i => i.category_id === catId)
+      return forDisplay(searchedItems.filter(i => i.category_id === catId))
     }
-    return items.filter(i => i.category_id === catId)
+    return forDisplay(items.filter(i => i.category_id === catId))
   }
 
   const handleDownloadPdf = () => {
