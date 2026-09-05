@@ -292,28 +292,31 @@ function OrderContent() {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 8 }}>
+      <div style={{ marginBottom: 8 }}>
+        {/* Back sits on its own row. It used to be absolutely positioned over
+            the heading, which buried it completely on a phone. */}
         <Link
           to="/"
           style={{
-            position: 'absolute',
-            left: 0,
             color: 'var(--gold)',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             textDecoration: 'none',
             fontSize: 14,
             gap: 4,
+            padding: '6px 0',
           }}
         >
           <ArrowLeft size={18} /> Back
         </Link>
         <h1 style={{
           fontFamily: 'var(--font-heading)',
-          fontSize: 40,
+          // Shrinks on narrow screens instead of running off both edges.
+          fontSize: 'clamp(26px, 8vw, 40px)',
           color: 'var(--white)',
           textAlign: 'center',
-          letterSpacing: 4,
+          letterSpacing: 'clamp(1px, 0.8vw, 4px)',
+          margin: '4px 0 0',
         }}>
           Order Online
         </h1>
@@ -431,7 +434,15 @@ function OrderContent() {
                       {item.name}
                     </span>
                     {item.description && (
-                      <p style={{ color: 'var(--gray)', fontSize: 12, margin: '4px 0 0' }}>
+                      <p style={{
+                        color: 'var(--gray)',
+                        fontSize: 12,
+                        margin: '4px 0 0',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}>
                         {item.description}
                       </p>
                     )}

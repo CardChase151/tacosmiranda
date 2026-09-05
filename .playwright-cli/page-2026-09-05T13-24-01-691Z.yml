@@ -1,0 +1,16 @@
+- generic [ref=f3e3]:
+  - banner [ref=f3e4]:
+    - link [ref=f3e5] [cursor=pointer]:
+      - /url: /
+      - img "Tacos Miranda" [ref=f3e6]
+    - button "Open menu" [ref=f3e7] [cursor=pointer]
+  - main [ref=f3e9]:
+    - paragraph [ref=f3e11]: Loading menu...
+  - contentinfo [ref=f3e12]:
+    - img "Tacos Miranda" [ref=f3e13]
+    - link "(657) 845-4011" [ref=f3e14] [cursor=pointer]:
+      - /url: tel:6578454011
+    - paragraph [ref=f3e15]: 21582 Brookhurst St, Huntington Beach, CA 92646
+    - paragraph [ref=f3e16]: © 2026 Tacos Miranda. All rights reserved.
+    - link "Built by AppCatalyst" [ref=f3e17] [cursor=pointer]:
+      - /url: https://appcatalyst.org

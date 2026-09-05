@@ -1,0 +1,42 @@
+- generic [ref=f4e3]:
+  - banner [ref=f4e4]:
+    - link [ref=f4e5] [cursor=pointer]:
+      - /url: /
+      - img "Tacos Miranda" [ref=f4e6]
+    - button "Open menu" [ref=f4e7] [cursor=pointer]
+  - main [ref=f4e9]:
+    - generic [ref=f4e10]:
+      - img "Tacos Miranda" [ref=f4e12]
+      - generic [ref=f4e14]:
+        - heading "Our Menu" [level=1] [ref=f4e15]
+        - generic [ref=f4e17]:
+          - button "Breakfast Served all day" [ref=f4e18] [cursor=pointer]:
+            - text: Breakfast
+            - generic [ref=f4e19]: Served all day
+          - button "Lunch & Dinner Starting at 10am" [ref=f4e20] [cursor=pointer]:
+            - text: Lunch & Dinner
+            - generic [ref=f4e21]: Starting at 10am
+        - textbox "Search menu..." [ref=f4e27]
+        - paragraph [ref=f4e28]: Loading menu...
+      - generic [ref=f4e29]:
+        - heading "Find Us" [level=2] [ref=f4e30]
+        - generic [ref=f4e31]:
+          - generic [ref=f4e32]:
+            - heading "Location" [level=3] [ref=f4e37]
+            - link "21582 Brookhurst St Huntington Beach, CA 92646" [ref=f4e38] [cursor=pointer]:
+              - /url: https://www.google.com/maps/place/Tacos+Miranda/@33.6493169,-117.95565,17z
+              - text: 21582 Brookhurst StHuntington Beach, CA 92646
+            - heading "Hours" [level=3] [ref=f4e43]
+            - paragraph [ref=f4e45]: Open 7 days a week
+          - link "Tacos Miranda - 21582 Brookhurst St, Huntington Beach, CA Get Directions" [ref=f4e46] [cursor=pointer]:
+            - /url: https://www.google.com/maps/place/Tacos+Miranda/@33.6493169,-117.95565,17z
+            - img "Tacos Miranda - 21582 Brookhurst St, Huntington Beach, CA"
+            - generic [ref=f4e47]: Get Directions
+  - contentinfo [ref=f4e48]:
+    - img "Tacos Miranda" [ref=f4e49]
+    - link "(657) 845-4011" [ref=f4e50] [cursor=pointer]:
+      - /url: tel:6578454011
+    - paragraph [ref=f4e51]: 21582 Brookhurst St, Huntington Beach, CA 92646
+    - paragraph [ref=f4e52]: © 2026 Tacos Miranda. All rights reserved.
+    - link "Built by AppCatalyst" [ref=f4e53] [cursor=pointer]:
+      - /url: https://appcatalyst.org
