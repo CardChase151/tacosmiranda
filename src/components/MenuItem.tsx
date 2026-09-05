@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2, EyeOff, Eye, ImageIcon, X } from 'lucide-react'
+import { Pencil, Trash2, EyeOff, Eye, ImageIcon, X, Clock, AlertTriangle } from 'lucide-react'
 import { supabase } from '../config/supabase'
 import { MenuItem as MenuItemType, MenuCategory } from '../types'
 import { deleteOrArchiveMenuItem } from '../utils/menuItemDelete'
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories = [] }: Props) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
   const [toggling, setToggling] = useState(false)
@@ -23,13 +23,9 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
   const handleDelete = async () => {
     const result = await deleteOrArchiveMenuItem(item.id)
     if (result.kind === 'error') {
-      alert(`Couldn't delete ${item.name}: ${result.message}`)
+      alert(`Couldn't remove ${item.name}: ${result.message}`)
       return
     }
-    if (result.kind === 'archived') {
-      alert(`${item.name} has ${result.orderCount} past order${result.orderCount === 1 ? '' : 's'}, so it was hidden (86'd) instead of deleted to keep receipts intact.`)
-    }
-    setConfirmDelete(false)
     onUpdate()
   }
 
@@ -112,24 +108,36 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
 
           {isAdmin && (
             <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
-              <button
-                onClick={handleToggle86}
-                disabled={toggling}
-                style={{
-                  background: is86 ? 'rgba(74,222,128,0.15)' : 'none',
-                  border: 'none', borderRadius: 4,
-                  color: is86 ? '#4ade80' : '#ef4444',
-                  padding: '2px 6px',
-                  opacity: toggling ? 0.5 : 0.85,
-                  cursor: toggling ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-                }}
-                title={is86 ? 'Bring back on the menu' : 'Hide from menu (86)'}
-              >
-                {is86 ? <Eye size={12} /> : <EyeOff size={12} />}
-                {is86 ? 'UN-86' : '86'}
-              </button>
+              {is86 ? (
+                <button
+                  onClick={handleToggle86}
+                  disabled={toggling}
+                  style={{
+                    background: 'rgba(74,222,128,0.15)', border: 'none', borderRadius: 4,
+                    color: '#4ade80', padding: '2px 6px',
+                    opacity: toggling ? 0.5 : 0.85,
+                    cursor: toggling ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                  }}
+                  title="Put this back on the menu"
+                >
+                  <Eye size={12} /> PUT BACK ON
+                </button>
+              ) : (
+                <button
+                  onClick={() => setRemoveOpen(true)}
+                  style={{
+                    background: 'none', border: 'none', borderRadius: 4,
+                    color: '#ef4444', padding: '2px 6px', opacity: 0.85, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                  }}
+                  title="Take this off the menu"
+                >
+                  <EyeOff size={12} /> TAKE OFF
+                </button>
+              )}
               <button
                 onClick={() => setEditOpen(true)}
                 style={{ background: 'none', border: 'none', color: 'var(--gold)', padding: 4, opacity: 0.7, cursor: 'pointer' }}
@@ -137,22 +145,6 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
               >
                 <Pencil size={14} />
               </button>
-              {confirmDelete ? (
-                <button
-                  onClick={handleDelete}
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Confirm
-                </button>
-              ) : (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  style={{ background: 'none', border: 'none', color: '#ef4444', padding: 4, opacity: 0.7, cursor: 'pointer' }}
-                  title="Delete"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -169,6 +161,75 @@ export default function MenuItemRow({ item, isAdmin, onUpdate, light, categories
           </p>
         )}
       </div>
+
+      {removeOpen && (
+        <div
+          onClick={() => setRemoveOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#161616', border: '1px solid var(--border)', borderRadius: 16,
+              maxWidth: 420, width: '100%', padding: 24,
+            }}
+          >
+            <h3 style={{ color: 'var(--white)', fontSize: 19, fontWeight: 700, margin: '0 0 6px' }}>
+              Take {item.name} off?
+            </h3>
+            <p style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px' }}>
+              Either way customers stop seeing it right now.
+            </p>
+
+            <button
+              onClick={async () => { setRemoveOpen(false); await handleToggle86() }}
+              style={{
+                width: '100%', textAlign: 'left', padding: '14px 16px', marginBottom: 10,
+                borderRadius: 10, border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.10)',
+                color: 'var(--white)', cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>
+                <Clock size={16} /> Just for now
+              </div>
+              <div style={{ color: 'var(--gray)', fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                Ran out today. It stays on your 86 list and you put it back when you have it.
+              </div>
+            </button>
+
+            <button
+              onClick={async () => { setRemoveOpen(false); await handleDelete() }}
+              style={{
+                width: '100%', textAlign: 'left', padding: '14px 16px',
+                borderRadius: 10, border: '1px solid #ef4444', background: 'rgba(239,68,68,0.10)',
+                color: 'var(--white)', cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, color: '#ef4444' }}>
+                <AlertTriangle size={16} /> Off the menu for good
+              </div>
+              <div style={{ color: 'var(--gray)', fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                Not selling it anymore. Deleted from the menu. Past orders keep it on their receipt.
+              </div>
+            </button>
+
+            <button
+              onClick={() => setRemoveOpen(false)}
+              style={{
+                width: '100%', marginTop: 14, padding: '11px 16px', borderRadius: 10,
+                border: '1px solid var(--border)', background: 'transparent',
+                color: 'var(--gray)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {photoOpen && item.image_url && (
         <div

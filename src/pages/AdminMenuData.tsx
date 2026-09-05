@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { Loader2, Plus, Trash2, EyeOff, Eye, ChevronUp, ChevronDown, Save, X } from 'lucide-react'
+import { Loader2, Plus, Trash2, EyeOff, Eye, ChevronUp, ChevronDown, Save, X, Undo2, Clock } from 'lucide-react'
 import { Ingredient, IngredientCategory, Modifier, ModifierGroup } from '../types'
 import { safeDeleteOrArchive } from '../utils/safeDelete'
 
-type Tab = 'ingredients' | 'categories' | 'modifier_groups'
+type Tab = 'eightysix' | 'ingredients' | 'categories' | 'modifier_groups'
 
 export default function AdminMenuData() {
   const { user, isAdmin, loading } = useAuth()
@@ -42,10 +42,11 @@ export default function AdminMenuData() {
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <h1 style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', margin: '0 0 8px' }}>Menu Data</h1>
         <p style={{ color: 'var(--gray)', marginBottom: 24 }}>
-          Manage ingredients, categories, and modifier groups. Items with order history are archived (86'd) instead of deleted to preserve receipts.
+          What is currently 86'd, plus ingredients, categories and modifier groups.
         </p>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          <TabBtn active={tab === 'eightysix'} onClick={() => setTab('eightysix')}>86'd Items</TabBtn>
           <TabBtn active={tab === 'ingredients'} onClick={() => setTab('ingredients')}>Ingredients ({ingredients.length})</TabBtn>
           <TabBtn active={tab === 'categories'} onClick={() => setTab('categories')}>Categories ({categories.length})</TabBtn>
           <TabBtn active={tab === 'modifier_groups'} onClick={() => setTab('modifier_groups')}>Modifier Groups ({modifierGroups.length})</TabBtn>
@@ -53,11 +54,134 @@ export default function AdminMenuData() {
 
         {busy && <div style={{ color: 'var(--gray)', marginBottom: 12 }}><Loader2 className="spin" size={14} /> Working…</div>}
 
+        {tab === 'eightysix' && <EightySixPane />}
         {tab === 'ingredients' && <IngredientsPane ingredients={ingredients} categories={categories} reload={reload} />}
         {tab === 'categories' && <CategoriesPane categories={categories} ingredients={ingredients} reload={reload} />}
         {tab === 'modifier_groups' && <ModifierGroupsPane groups={modifierGroups} modifiers={modifiers} reload={reload} />}
       </div>
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+}
+
+// ============ 86'd items ============
+// An 86 has no expiry, so without somewhere to see them things stay off for
+// weeks. Horchata and Aguas Frescas sat off for three weeks before anyone
+// noticed. This is the list, with one tap to put each back.
+
+type OffItem = {
+  id: string
+  name: string
+  category: string
+  meal_type: string
+  since: string | null
+}
+
+function EightySixPane() {
+  const [items, setItems] = useState<OffItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('menu_items')
+      .select('id, name, updated_at, menu_categories(name, meal_type)')
+      .eq('is_86', true)
+      .eq('is_test', false)
+    setItems(((data as any[]) || []).map(r => ({
+      id: r.id,
+      name: r.name,
+      category: r.menu_categories?.name || '',
+      meal_type: r.menu_categories?.meal_type || '',
+      since: r.updated_at,
+    })))
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const putBack = async (id: string) => {
+    setBusyId(id)
+    const { error } = await supabase.from('menu_items').update({ is_86: false }).eq('id', id)
+    setBusyId(null)
+    if (error) { alert(`Couldn't put that back on: ${error.message}`); return }
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const offFor = (since: string | null) => {
+    if (!since) return null
+    const days = Math.floor((Date.now() - new Date(since).getTime()) / 86400000)
+    return days <= 0 ? 'today' : days === 1 ? '1 day' : `${days} days`
+  }
+
+  if (loading) return <div style={{ color: 'var(--gray)' }}><Loader2 className="spin" size={14} /> Loading…</div>
+
+  if (items.length === 0) {
+    return (
+      <div style={{
+        border: '1px solid var(--border)', borderRadius: 12, padding: 32, textAlign: 'center',
+      }}>
+        <Eye size={26} style={{ color: '#4ade80', marginBottom: 10 }} />
+        <p style={{ color: 'var(--white)', fontSize: 16, fontWeight: 600, margin: '0 0 4px' }}>
+          Nothing is 86'd
+        </p>
+        <p style={{ color: 'var(--gray)', fontSize: 14, margin: 0 }}>
+          Everything on the menu is available to order.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p style={{ color: 'var(--gray)', fontSize: 14, lineHeight: 1.6, margin: '0 0 16px' }}>
+        Customers cannot see or order these, and they stay off until you put them back.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map(i => {
+          const age = offFor(i.since)
+          const stale = i.since ? Date.now() - new Date(i.since).getTime() > 3 * 86400000 : false
+          return (
+            <div key={i.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 12, flexWrap: 'wrap',
+              border: '1px solid ' + (stale ? 'rgba(245,158,11,0.45)' : 'var(--border)'),
+              background: stale ? 'rgba(245,158,11,0.07)' : 'transparent',
+              borderRadius: 12, padding: '14px 16px',
+            }}>
+              <div>
+                <div style={{ color: 'var(--white)', fontSize: 16, fontWeight: 700 }}>{i.name}</div>
+                <div style={{ color: 'var(--gray)', fontSize: 13, marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>
+                    {i.category}
+                    {i.meal_type === 'breakfast' ? ' · breakfast' : i.meal_type === 'lunch_dinner' ? ' · lunch & dinner' : ''}
+                  </span>
+                  {age && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: stale ? '#f59e0b' : 'var(--gray)' }}>
+                      <Clock size={12} /> off {age}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => putBack(i.id)}
+                disabled={busyId === i.id}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '11px 18px', borderRadius: 10,
+                  border: '1px solid #34d399', background: 'transparent',
+                  color: '#34d399', fontSize: 14, fontWeight: 700,
+                  cursor: busyId === i.id ? 'default' : 'pointer',
+                }}
+              >
+                {busyId === i.id ? <Loader2 size={14} className="spin" /> : <Undo2 size={14} />}
+                Put back on menu
+              </button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
