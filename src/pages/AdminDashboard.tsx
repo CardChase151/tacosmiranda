@@ -147,31 +147,6 @@ export default function AdminDashboard() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  useEffect(() => {
-    if (loading || !user || !isAdmin) return
-    const channel = supabase
-      .channel('orders-dashboard')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
-        payload => {
-          const row = payload.new as Partial<Order> & { id: string }
-          setOrders(prev => prev.map(o => (o.id === row.id ? { ...o, ...row } : o)))
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        () => { fetchOrders() }
-      )
-      .subscribe((status, err) => {
-        setLive(status === 'SUBSCRIBED')
-        if (status !== 'SUBSCRIBED') console.warn('[orders-live]', status, err || '')
-      })
-
-    return () => { supabase.removeChannel(channel); setLive(false) }
-  }, [loading, user, isAdmin, fetchOrders])
-
   // ── Order detail + reprint ────────────────────────────────────────────────
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [lines, setLines] = useState<Record<string, OrderLine[]>>({})
