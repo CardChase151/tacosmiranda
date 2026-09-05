@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2, Power, PowerOff, Printer, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { BarChart3, Download, DollarSign, ShoppingBag, Receipt, TrendingUp, Loader2, Power, PowerOff, Printer, ChevronDown, ChevronRight, Check, Radio } from 'lucide-react'
 
 type Order = {
   id: string
@@ -60,7 +60,7 @@ export default function AdminDashboard() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [toggling, setToggling] = useState(false)
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setFetching(true)
     const since = startOf(range).toISOString()
     const { data } = await supabase
@@ -72,7 +72,8 @@ export default function AdminDashboard() {
       .limit(500)
     setOrders((data as Order[]) || [])
     setFetching(false)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range])
 
   useEffect(() => {
     if (!loading && user && isAdmin) fetchOrders()
@@ -105,12 +106,80 @@ export default function AdminDashboard() {
     }
   }
 
+  // ── Live orders ───────────────────────────────────────────────────────────
+  // New tickets and reprint status arrive on their own. Updates are patched in
+  // place so an expanded row does not collapse under the owner mid-look.
+  // ── Keeping the list current ──────────────────────────────────────────────
+  // Supabase realtime is returning 500 on this project, so this polls instead.
+  // At this order volume that is a handful of requests a minute, and it keeps
+  // working if realtime comes back. Paused while the tab is in the background.
+  const REFRESH_MS = 15000
+  const [live, setLive] = useState(false)
+  const fetchRef = useRef(fetchOrders)
+  useEffect(() => { fetchRef.current = fetchOrders }, [fetchOrders])
+
+  useEffect(() => {
+    if (loading || !user || !isAdmin) return
+    setLive(true)
+    let timer: number | undefined
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchRef.current()
+    }
+    timer = window.setInterval(tick, REFRESH_MS)
+
+    // Catch up immediately when the owner comes back to the tab.
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchRef.current() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      if (timer) window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      setLive(false)
+    }
+  }, [loading, user, isAdmin])
+
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 760 : false
+  )
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 760)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  useEffect(() => {
+    if (loading || !user || !isAdmin) return
+    const channel = supabase
+      .channel('orders-dashboard')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        payload => {
+          const row = payload.new as Partial<Order> & { id: string }
+          setOrders(prev => prev.map(o => (o.id === row.id ? { ...o, ...row } : o)))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        () => { fetchOrders() }
+      )
+      .subscribe((status, err) => {
+        setLive(status === 'SUBSCRIBED')
+        if (status !== 'SUBSCRIBED') console.warn('[orders-live]', status, err || '')
+      })
+
+    return () => { supabase.removeChannel(channel); setLive(false) }
+  }, [loading, user, isAdmin, fetchOrders])
+
   // ── Order detail + reprint ────────────────────────────────────────────────
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [lines, setLines] = useState<Record<string, OrderLine[]>>({})
   const [loadingLines, setLoadingLines] = useState<string | null>(null)
   const [reprinting, setReprinting] = useState<string | null>(null)
   const [reprintQueued, setReprintQueued] = useState<Record<string, boolean>>({})
+
+  const linesFor = (orderId: string): OrderLine[] => lines[orderId] || []
 
   const toggleExpand = async (orderId: string) => {
     if (expandedId === orderId) { setExpandedId(null); return }
@@ -207,6 +276,16 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <BarChart3 size={28} style={{ color: '#a78bfa' }} />
           <h1 style={{ color: 'var(--gold)', fontFamily: 'var(--font-heading)', margin: 0 }}>Sales Dashboard</h1>
+          {live && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
+              color: '#34d399', border: '1px solid rgba(52,211,153,0.4)',
+              borderRadius: 20, padding: '3px 10px',
+            }}>
+              <Radio size={12} /> Auto-updating
+            </span>
+          )}
         </div>
         <p style={{ color: 'var(--gray)', marginBottom: 24 }}>
           Online orders only. Numbers reflect paid orders — failed or pending-payment orders are excluded.
@@ -304,6 +383,112 @@ export default function AdminDashboard() {
             <p style={{ color: 'var(--gray)' }}><Loader2 size={14} className="spin" /> Loading…</p>
           ) : orders.length === 0 ? (
             <p style={{ color: 'var(--gray)' }}>No paid orders in this range.</p>
+          ) : isMobile ? (
+            /* Phone: cards, so Reprint is a full-width tap target instead of
+               the eighth column of a sideways-scrolling table. */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {orders.slice(0, 50).map(o => {
+                const open = expandedId === o.id
+                const queued = !!reprintQueued[o.id] || !!o.reprint_requested
+                const lines = linesFor(o.id)
+                return (
+                  <div key={o.id} style={{
+                    border: '1px solid var(--border)', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.02)', padding: 14,
+                  }}>
+                    <div
+                      onClick={() => toggleExpand(o.id)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}
+                    >
+                      <div>
+                        <div style={{ color: 'var(--gold)', fontSize: 16, fontWeight: 700 }}>
+                          {o.order_number}
+                        </div>
+                        <div style={{ color: 'var(--gray)', fontSize: 13, marginTop: 3 }}>
+                          {o.customer_name || 'Guest'}
+                        </div>
+                        <div style={{ color: '#666', fontSize: 12, marginTop: 3 }}>
+                          {o.paid_at ? new Date(o.paid_at).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ color: 'var(--gold)', fontSize: 17, fontWeight: 700 }}>
+                          ${Number(o.total || 0).toFixed(2)}
+                        </div>
+                        <div style={{ color: '#666', fontSize: 12, marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />} items
+                        </div>
+                      </div>
+                    </div>
+
+                    {open && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        {loadingLines === o.id ? (
+                          <p style={{ color: 'var(--gray)', fontSize: 13, margin: 0 }}>
+                            <Loader2 size={13} className="spin" /> Loading items…
+                          </p>
+                        ) : lines.length === 0 ? (
+                          <p style={{ color: 'var(--gray)', fontSize: 13, margin: 0 }}>No line items recorded.</p>
+                        ) : lines.map(li => (
+                          <div key={li.id} style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                              <span style={{ color: 'var(--gold)', fontSize: 14, fontWeight: 600 }}>
+                                {li.quantity || 1}× {li.item_name}
+                              </span>
+                              <span style={{ color: 'var(--gold)', fontSize: 14 }}>
+                                ${Number(li.line_total || 0).toFixed(2)}
+                              </span>
+                            </div>
+                            {li.modifiers.map((m, k) => (
+                              <div key={`m${k}`} style={{ color: 'var(--gray)', fontSize: 12, paddingLeft: 12 }}>+ {m.modifier_name}</div>
+                            ))}
+                            {li.ingredients.map((g, k) => (
+                              <div key={`g${k}`} style={{ color: g.action === 'remove' ? '#ef4444' : '#60a5fa', fontSize: 12, paddingLeft: 12 }}>
+                                {g.action === 'remove' ? 'NO' : 'EXTRA'} {g.ingredient_name}
+                              </div>
+                            ))}
+                            {li.special_instructions && (
+                              <div style={{ color: '#eab308', fontSize: 12, paddingLeft: 12, fontStyle: 'italic' }}>
+                                "{li.special_instructions}"
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {o.special_instructions && (
+                          <p style={{ color: '#eab308', fontSize: 13, fontStyle: 'italic', margin: '6px 0 0' }}>
+                            Order note: "{o.special_instructions}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => handleReprint(o.id)}
+                      disabled={reprinting === o.id || queued}
+                      style={{
+                        marginTop: 12, width: '100%',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        padding: '13px 16px', borderRadius: 10, fontSize: 15, fontWeight: 700,
+                        border: queued ? '1px solid rgba(52,211,153,0.5)' : '1px solid var(--gold)',
+                        background: 'transparent',
+                        color: queued ? '#34d399' : 'var(--gold)',
+                        cursor: reprinting === o.id || queued ? 'default' : 'pointer',
+                      }}
+                    >
+                      {reprinting === o.id
+                        ? <Loader2 size={16} className="spin" />
+                        : queued ? <Check size={16} /> : <Printer size={16} />}
+                      {queued ? 'Sent to printer' : 'Reprint receipt'}
+                    </button>
+                  </div>
+                )
+              })}
+              {orders.length > 50 && (
+                <p style={{ color: 'var(--gray)', fontSize: 12, textAlign: 'center' }}>
+                  Showing 50 of {orders.length} — use CSV export to see all.
+                </p>
+              )}
+            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
